@@ -8,7 +8,7 @@ use sqlx::Executor;
 use std::sync::atomic::AtomicU32;
 use std::sync::Arc;
 
-const COUNTER: AtomicU32 = AtomicU32::new(0);
+static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,21 +27,23 @@ async fn main() -> Result<()> {
     drop(conn);
 
     let mut handles = Vec::new();
-    let max = 10_000;
+    let batch_size = 100;
+    let max = 10_000_000 / batch_size;
     for _ in 0..32 {
         let mut conn = pool.acquire().await?;
         handles.push(tokio::spawn(async move {
             let x = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            println!("{}", x);
             if x >= max {
                 return;
             }
             conn.execute("begin").await.expect("begin failed");
-            for i in 0..1000 {
+            for i in 0..batch_size {
                 conn.execute(
                     format!(
                         "insert into t values({}, {})",
-                        x * 1000 + i,
-                        (x * 1000 + i) * 2
+                        x * batch_size + i,
+                        (x * batch_size + i) * 2
                     )
                     .as_str(),
                 )
@@ -50,6 +52,9 @@ async fn main() -> Result<()> {
             }
             conn.execute("commit").await.expect("commit failed");
         }));
+    }
+    for handle in handles {
+        handle.await.expect("spawn failed");
     }
     Ok(())
 }
