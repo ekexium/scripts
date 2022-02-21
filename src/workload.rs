@@ -1,5 +1,4 @@
 use crate::Result;
-use log::warn;
 use rand::prelude::StdRng;
 use rand::Rng;
 use rand::SeedableRng;

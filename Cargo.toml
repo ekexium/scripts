@@ -20,3 +20,7 @@ ctrlc = "3"
 rand = "0.8"
 simple-logging = "2"
 log = "0.4"
+
+[[bin]]
+name = "million-writer"
+path = "src/bin/million_writer.rs"
