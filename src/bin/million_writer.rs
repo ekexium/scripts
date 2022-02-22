@@ -15,7 +15,7 @@ async fn main() -> Result<()> {
     simple_logging::log_to_file("dmlddl.log", LevelFilter::Info)?;
     let pool = MySqlPoolOptions::new()
         .max_connections(500)
-        .connect("mysql://root@127.0.0.1:4000/test")
+        .connect("mysql://root@172.16.5.181:4000/test")
         .await?;
     let pool = Arc::new(pool);
 
@@ -32,22 +32,28 @@ async fn main() -> Result<()> {
     for _ in 0..32 {
         let mut conn = pool.acquire().await?;
         handles.push(tokio::spawn(async move {
-            let x = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            if x >= max {
-                return;
-            }
-            conn.execute(
-                format!(
-                    "insert into t values {}",
-                    (0..batch_size)
-                        .map(|y| format!("({}, {})", x * batch_size + y, (x * batch_size + y) * 2))
-                        .collect::<Vec<String>>()
-                        .join(","),
+            loop {
+                let x = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                if x >= max {
+                    return;
+                }
+                conn.execute(
+                    format!(
+                        "insert into t values {}",
+                        (0..batch_size)
+                            .map(|y| format!(
+                                "({}, {})",
+                                x * batch_size + y,
+                                (x * batch_size + y) * 2
+                            ))
+                            .collect::<Vec<String>>()
+                            .join(","),
+                    )
+                    .as_str(),
                 )
-                .as_str(),
-            )
-            .await
-            .expect("insert failed");
+                .await
+                .expect("insert failed");
+            }
         }));
     }
     for handle in handles {
