@@ -28,29 +28,26 @@ async fn main() -> Result<()> {
 
     let mut handles = Vec::new();
     let batch_size = 100;
-    let max = 10_000_000 / batch_size;
+    let max = 10_00 / batch_size;
     for _ in 0..32 {
         let mut conn = pool.acquire().await?;
         handles.push(tokio::spawn(async move {
             let x = COUNTER.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-            println!("{}", x);
             if x >= max {
                 return;
             }
-            conn.execute("begin").await.expect("begin failed");
-            for i in 0..batch_size {
-                conn.execute(
-                    format!(
-                        "insert into t values({}, {})",
-                        x * batch_size + i,
-                        (x * batch_size + i) * 2
-                    )
-                    .as_str(),
+            conn.execute(
+                format!(
+                    "insert into t values {}",
+                    (0..batch_size)
+                        .map(|y| format!("({}, {})", x * batch_size + y, (x * batch_size + y) * 2))
+                        .collect::<Vec<String>>()
+                        .join(","),
                 )
-                .await
-                .expect("insert failed");
-            }
-            conn.execute("commit").await.expect("commit failed");
+                .as_str(),
+            )
+            .await
+            .expect("insert failed");
         }));
     }
     for handle in handles {

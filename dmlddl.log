@@ -1,4 +1,4 @@
-[00:00:00.005] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.414ms
+[00:00:00.023] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 7.056ms
 
 SET
   sql_mode =(
@@ -11,16 +11,16 @@ SET
   time_zone = '+00:00',
   NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-[00:00:00.006] (101aac580) INFO   use test; rows: 0, elapsed: 199.416µs
-[00:00:00.007] (101aac580) INFO   drop table if exists …; rows: 0, elapsed: 500.875µs
+[00:00:00.024] (1012a0580) INFO   use test; rows: 0, elapsed: 421.125µs
+[00:00:00.053] (1012a0580) INFO   drop table if exists …; rows: 0, elapsed: 27.902ms
 
 drop table if exists test
 
-[00:00:00.150] (101aac580) INFO   create table t(a int …; rows: 0, elapsed: 141.160ms
+[00:00:00.143] (1012a0580) INFO   create table t(a int …; rows: 0, elapsed: 88.507ms
 
 create table t(a int primary key, b int)
 
-[00:00:00.154] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 474.083µs
+[00:00:00.149] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.535ms
 
 SET
   sql_mode =(
@@ -33,9 +33,7 @@ SET
   time_zone = '+00:00',
   NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-[00:00:00.155] (170477000) INFO   begin; rows: 0, elapsed: 581.333µs
-[00:00:00.155] (170477000) INFO   begin; rows: 0, elapsed: 745.875µs
-[00:00:00.158] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 602.083µs
+[00:00:00.154] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 780.166µs
 
 SET
   sql_mode =(
@@ -48,15 +46,7 @@ SET
   time_zone = '+00:00',
   NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-[00:00:00.158] (170477000) INFO   begin; rows: 0, elapsed: 416.250µs
-[00:00:00.160] (170477000) INFO   insert into t values(0, …; rows: 0, elapsed: 4.992ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.161] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 507.791µs
+[00:00:00.176] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 717.333µs
 
 SET
   sql_mode =(
@@ -69,1307 +59,1154 @@ SET
   time_zone = '+00:00',
   NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-[00:00:00.161] (170477000) INFO   insert into t values(1, …; rows: 0, elapsed: 487.791µs
-
-insert into
-  t
-values
-(1, 2)
-
-[00:00:00.162] (16fe53000) INFO   begin; rows: 0, elapsed: 600.166µs
-[00:00:00.163] (16fe53000) INFO   insert into t values(2, …; rows: 0, elapsed: 562.250µs
-
-insert into
-  t
-values
-(2, 4)
-
-[00:00:00.164] (16fe53000) INFO   insert into t values(3, …; rows: 0, elapsed: 511.458µs
-
-insert into
-  t
-values
-(3, 6)
-
-[00:00:00.165] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 795.916µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.165] (16fe53000) INFO   insert into t values(4, …; rows: 0, elapsed: 512.083µs
-
-insert into
-  t
-values
-(4, 8)
-
-[00:00:00.165] (16f417000) INFO   begin; rows: 0, elapsed: 507.291µs
-[00:00:00.166] (16fe53000) INFO   insert into t values(5, …; rows: 0, elapsed: 572.833µs
-
-insert into
-  t
-values
-(5, 10)
-
-[00:00:00.167] (16f417000) INFO   insert into t values(6, …; rows: 0, elapsed: 427.750µs
-
-insert into
-  t
-values
-(6, 12)
-
-[00:00:00.168] (16fe53000) INFO   insert into t values(7, …; rows: 0, elapsed: 383.000µs
-
-insert into
-  t
-values
-(7, 14)
-
-[00:00:00.169] (16fe53000) INFO   insert into t values(8, …; rows: 0, elapsed: 342.958µs
-
-insert into
-  t
-values
-(8, 16)
-
-[00:00:00.169] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.037ms
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.170] (16fe53000) INFO   insert into t values(9, …; rows: 0, elapsed: 443.250µs
-
-insert into
-  t
-values
-(9, 18)
-
-[00:00:00.170] (16fe53000) INFO   begin; rows: 0, elapsed: 854.041µs
-[00:00:00.171] (16f417000) INFO   insert into t values(10, …; rows: 0, elapsed: 358.541µs
-
-insert into
-  t
-values
-(10, 20)
-
-[00:00:00.171] (16f417000) INFO   insert into t values(11, …; rows: 0, elapsed: 363.500µs
-
-insert into
-  t
-values
-(11, 22)
-
-[00:00:00.172] (16f417000) INFO   insert into t values(12, …; rows: 0, elapsed: 503.250µs
-
-insert into
-  t
-values
-(12, 24)
-
-[00:00:00.173] (16f417000) INFO   insert into t values(13, …; rows: 0, elapsed: 286.375µs
-
-insert into
-  t
-values
-(13, 26)
-
-[00:00:00.173] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 851.166µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.174] (16f417000) INFO   insert into t values(14, …; rows: 0, elapsed: 410.125µs
-
-insert into
-  t
-values
-(14, 28)
-
-[00:00:00.174] (16f417000) INFO   begin; rows: 0, elapsed: 753.166µs
-[00:00:00.175] (16f417000) INFO   insert into t values(15, …; rows: 0, elapsed: 398.083µs
-
-insert into
-  t
-values
-(15, 30)
-
-[00:00:00.176] (16f417000) INFO   insert into t values(16, …; rows: 0, elapsed: 366.500µs
-
-insert into
-  t
-values
-(16, 32)
-
-[00:00:00.177] (16f417000) INFO   insert into t values(17, …; rows: 0, elapsed: 339.583µs
-
-insert into
-  t
-values
-(17, 34)
-
-[00:00:00.177] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 550.500µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.178] (16f417000) INFO   insert into t values(18, …; rows: 0, elapsed: 706.708µs
-
-insert into
-  t
-values
-(18, 36)
-
-[00:00:00.178] (16f417000) INFO   begin; rows: 0, elapsed: 853.125µs
-[00:00:00.179] (16fe53000) INFO   insert into t values(19, …; rows: 0, elapsed: 489.833µs
-
-insert into
-  t
-values
-(19, 38)
-
-[00:00:00.181] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 614.000µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.182] (16fe53000) INFO   begin; rows: 0, elapsed: 636.208µs
-[00:00:00.183] (16fe53000) INFO   insert into t values(20, …; rows: 0, elapsed: 4.118ms
-
-insert into
-  t
-values
-(20, 40)
-
-[00:00:00.184] (16fe53000) INFO   insert into t values(21, …; rows: 0, elapsed: 419.583µs
-
-insert into
-  t
-values
-(21, 42)
-
-[00:00:00.185] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 548.291µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.185] (16fe53000) INFO   begin; rows: 0, elapsed: 405.666µs
-[00:00:00.186] (16fe53000) INFO   insert into t values(22, …; rows: 0, elapsed: 1.420ms
-
-insert into
-  t
-values
-(22, 44)
-
-[00:00:00.187] (16fe53000) INFO   insert into t values(23, …; rows: 0, elapsed: 344.208µs
-
-insert into
-  t
-values
-(23, 46)
-
-[00:00:00.188] (16fe53000) INFO   insert into t values(24, …; rows: 0, elapsed: 396.333µs
-
-insert into
-  t
-values
-(24, 48)
-
-[00:00:00.188] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 864.333µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.189] (16fe53000) INFO   insert into t values(25, …; rows: 0, elapsed: 353.083µs
-
-insert into
-  t
-values
-(25, 50)
-
-[00:00:00.189] (16f417000) INFO   begin; rows: 0, elapsed: 368.333µs
-[00:00:00.190] (170477000) INFO   insert into t values(26, …; rows: 0, elapsed: 541.208µs
-
-insert into
-  t
-values
-(26, 52)
-
-[00:00:00.191] (170477000) INFO   insert into t values(27, …; rows: 0, elapsed: 347.500µs
-
-insert into
-  t
-values
-(27, 54)
-
-[00:00:00.192] (170477000) INFO   insert into t values(28, …; rows: 0, elapsed: 393.208µs
-
-insert into
-  t
-values
-(28, 56)
-
-[00:00:00.192] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 878.583µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.193] (170477000) INFO   insert into t values(29, …; rows: 0, elapsed: 504.458µs
-
-insert into
-  t
-values
-(29, 58)
-
-[00:00:00.193] (170477000) INFO   begin; rows: 0, elapsed: 659.500µs
-[00:00:00.194] (170477000) INFO   insert into t values(30, …; rows: 0, elapsed: 402.833µs
-
-insert into
-  t
-values
-(30, 60)
-
-[00:00:00.195] (170477000) INFO   insert into t values(31, …; rows: 0, elapsed: 922.625µs
-
-insert into
-  t
-values
-(31, 62)
-
-[00:00:00.196] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 607.041µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.196] (170477000) INFO   insert into t values(32, …; rows: 0, elapsed: 642.750µs
-
-insert into
-  t
-values
-(32, 64)
-
-[00:00:00.197] (170477000) INFO   begin; rows: 0, elapsed: 804.916µs
-[00:00:00.197] (16fe53000) INFO   insert into t values(33, …; rows: 0, elapsed: 537.500µs
-
-insert into
-  t
-values
-(33, 66)
-
-[00:00:00.199] (16fe53000) INFO   insert into t values(34, …; rows: 0, elapsed: 1.329ms
-
-insert into
-  t
-values
-(34, 68)
-
-[00:00:00.199] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 691.750µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.200] (170477000) INFO   insert into t values(35, …; rows: 0, elapsed: 455.708µs
-
-insert into
-  t
-values
-(35, 70)
-
-[00:00:00.201] (170477000) INFO   begin; rows: 0, elapsed: 950.083µs
-[00:00:00.201] (16fe53000) INFO   insert into t values(36, …; rows: 0, elapsed: 402.500µs
-
-insert into
-  t
-values
-(36, 72)
-
-[00:00:00.202] (16fe53000) INFO   insert into t values(37, …; rows: 0, elapsed: 355.291µs
-
-insert into
-  t
-values
-(37, 74)
-
-[00:00:00.203] (16fe53000) INFO   insert into t values(38, …; rows: 0, elapsed: 283.333µs
-
-insert into
-  t
-values
-(38, 76)
-
-[00:00:00.203] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 536.375µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.204] (16fe53000) INFO   insert into t values(39, …; rows: 0, elapsed: 296.875µs
-
-insert into
-  t
-values
-(39, 78)
-
-[00:00:00.204] (16f417000) INFO   begin; rows: 0, elapsed: 340.291µs
-[00:00:00.204] (16fe53000) INFO   insert into t values(40, …; rows: 0, elapsed: 414.791µs
-
-insert into
-  t
-values
-(40, 80)
-
-[00:00:00.205] (16fe53000) INFO   insert into t values(41, …; rows: 0, elapsed: 303.875µs
-
-insert into
-  t
-values
-(41, 82)
-
-[00:00:00.206] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 770.500µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.207] (16fe53000) INFO   insert into t values(42, …; rows: 0, elapsed: 366.916µs
-
-insert into
-  t
-values
-(42, 84)
-
-[00:00:00.207] (170477000) INFO   begin; rows: 0, elapsed: 343.083µs
-[00:00:00.208] (16fe53000) INFO   insert into t values(43, …; rows: 0, elapsed: 658.833µs
-
-insert into
-  t
-values
-(43, 86)
-
-[00:00:00.209] (16fe53000) INFO   insert into t values(44, …; rows: 0, elapsed: 355.458µs
-
-insert into
-  t
-values
-(44, 88)
-
-[00:00:00.210] (16fe53000) INFO   insert into t values(45, …; rows: 0, elapsed: 306.916µs
-
-insert into
-  t
-values
-(45, 90)
-
-[00:00:00.210] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 410.000µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.211] (16fe53000) INFO   insert into t values(46, …; rows: 0, elapsed: 464.333µs
-
-insert into
-  t
-values
-(46, 92)
-
-[00:00:00.211] (16fe53000) INFO   begin; rows: 0, elapsed: 822.375µs
-[00:00:00.212] (16fe53000) INFO   insert into t values(47, …; rows: 0, elapsed: 448.583µs
-
-insert into
-  t
-values
-(47, 94)
-
-[00:00:00.213] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 517.208µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.214] (16fe53000) INFO   begin; rows: 0, elapsed: 412.583µs
-[00:00:00.216] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 419.250µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.217] (170477000) INFO   begin; rows: 0, elapsed: 520.708µs
-[00:00:00.219] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 561.625µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.220] (170477000) INFO   begin; rows: 0, elapsed: 352.833µs
-[00:00:00.221] (16fe53000) INFO   insert into t values(48, …; rows: 0, elapsed: 8.880ms
-
-insert into
-  t
-values
-(48, 96)
-
-[00:00:00.222] (170477000) INFO   insert into t values(49, …; rows: 0, elapsed: 401.083µs
-
-insert into
-  t
-values
-(49, 98)
-
-[00:00:00.222] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 384.791µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.223] (170477000) INFO   insert into t values(50, …; rows: 0, elapsed: 482.875µs
-
-insert into
-  t
-values
-(50, 100)
-
-[00:00:00.223] (170477000) INFO   begin; rows: 0, elapsed: 785.583µs
-[00:00:00.224] (170477000) INFO   insert into t values(51, …; rows: 0, elapsed: 369.875µs
-
-insert into
-  t
-values
-(51, 102)
-
-[00:00:00.226] (170477000) INFO   insert into t values(52, …; rows: 0, elapsed: 1.319ms
-
-insert into
-  t
-values
-(52, 104)
-
-[00:00:00.226] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 433.708µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.227] (170477000) INFO   insert into t values(53, …; rows: 0, elapsed: 1.048ms
-
-insert into
-  t
-values
-(53, 106)
-
-[00:00:00.227] (16fe53000) INFO   begin; rows: 0, elapsed: 1.153ms
-[00:00:00.228] (16fe53000) INFO   insert into t values(54, …; rows: 0, elapsed: 389.125µs
-
-insert into
-  t
-values
-(54, 108)
-
-[00:00:00.251] (16fe53000) INFO   insert into t values(55, …; rows: 0, elapsed: 1.061ms
-
-insert into
-  t
-values
-(55, 110)
-
-[00:00:00.268] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 22.446ms
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.270] (16fe53000) INFO   begin; rows: 0, elapsed: 2.228ms
-[00:00:00.273] (16fe53000) INFO   insert into t values(56, …; rows: 0, elapsed: 4.418ms
-
-insert into
-  t
-values
-(56, 112)
-
-[00:00:00.273] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.410ms
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.273] (16fe53000) INFO   begin; rows: 0, elapsed: 535.666µs
-[00:00:00.277] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.036ms
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.285] (170477000) INFO   insert into t values(57, …; rows: 0, elapsed: 12.007ms
-
-insert into
-  t
-values
-(57, 114)
-
-[00:00:00.286] (170477000) INFO   begin; rows: 0, elapsed: 8.748ms
-[00:00:00.287] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.493ms
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.304] (170477000) INFO   begin; rows: 0, elapsed: 16.327ms
-[00:00:00.305] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 415.791µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.306] (170477000) INFO   begin; rows: 0, elapsed: 458.000µs
-[00:00:00.308] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 428.541µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.309] (16fe53000) INFO   insert into t values(58, …; rows: 0, elapsed: 22.953ms
-
-insert into
-  t
-values
-(58, 116)
-
-[00:00:00.309] (16f417000) INFO   begin; rows: 0, elapsed: 285.750µs
-[00:00:00.310] (16f417000) INFO   insert into t values(59, …; rows: 0, elapsed: 1.163ms
-
-insert into
-  t
-values
-(59, 118)
-
-[00:00:00.311] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 439.750µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.313] (16f417000) INFO   insert into t values(60, …; rows: 0, elapsed: 1.817ms
-
-insert into
-  t
-values
-(60, 120)
-
-[00:00:00.313] (16f417000) INFO   begin; rows: 0, elapsed: 1.458ms
-[00:00:00.315] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 880.291µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.315] (16f417000) INFO   begin; rows: 0, elapsed: 412.708µs
-[00:00:00.317] (16f417000) INFO   insert into t values(61, …; rows: 0, elapsed: 3.366ms
-
-insert into
-  t
-values
-(61, 122)
-
-[00:00:00.318] (16f417000) INFO   insert into t values(62, …; rows: 0, elapsed: 421.666µs
-
-insert into
-  t
-values
-(62, 124)
-
-[00:00:00.318] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 526.666µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.318] (170477000) INFO   insert into t values(63, …; rows: 0, elapsed: 284.666µs
-
-insert into
-  t
-values
-(63, 126)
-
-[00:00:00.318] (16fe53000) INFO   begin; rows: 0, elapsed: 330.250µs
-[00:00:00.319] (170477000) INFO   insert into t values(64, …; rows: 0, elapsed: 397.791µs
-
-insert into
-  t
-values
-(64, 128)
-
-[00:00:00.321] (101aac580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 812.333µs
-
-SET
-  sql_mode =(
-    SELECT
-      CONCAT(
-        @ @sql_mode,
-        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
-      )
-  ),
-  time_zone = '+00:00',
-  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-[00:00:00.321] (170477000) INFO   begin; rows: 0, elapsed: 181.333µs
-[00:00:00.324] (16f417000) INFO   insert into t values(65, …; rows: 0, elapsed: 4.488ms
-
-insert into
-  t
-values
-(65, 130)
-
-[00:00:00.325] (16f417000) INFO   insert into t values(66, …; rows: 0, elapsed: 257.083µs
-
-insert into
-  t
-values
-(66, 132)
-
-[00:00:00.325] (16f417000) INFO   insert into t values(67, …; rows: 0, elapsed: 223.208µs
-
-insert into
-  t
-values
-(67, 134)
-
-[00:00:00.329] (16f417000) INFO   insert into t values(68, …; rows: 0, elapsed: 3.436ms
-
-insert into
-  t
-values
-(68, 136)
-
-[00:00:00.336] (170477000) INFO   insert into t values(69, …; rows: 0, elapsed: 5.775ms
-
-insert into
-  t
-values
-(69, 138)
-
-[00:00:00.336] (170477000) INFO   insert into t values(70, …; rows: 0, elapsed: 355.208µs
-
-insert into
-  t
-values
-(70, 140)
-
-[00:00:00.337] (170477000) INFO   insert into t values(71, …; rows: 0, elapsed: 268.083µs
-
-insert into
-  t
-values
-(71, 142)
-
-[00:00:00.338] (170477000) INFO   insert into t values(72, …; rows: 0, elapsed: 229.625µs
-
-insert into
-  t
-values
-(72, 144)
-
-[00:00:00.339] (170477000) INFO   insert into t values(73, …; rows: 0, elapsed: 271.791µs
-
-insert into
-  t
-values
-(73, 146)
-
-[00:00:00.339] (170477000) INFO   insert into t values(74, …; rows: 0, elapsed: 217.291µs
-
-insert into
-  t
-values
-(74, 148)
-
-[00:00:00.340] (170477000) INFO   insert into t values(75, …; rows: 0, elapsed: 196.500µs
-
-insert into
-  t
-values
-(75, 150)
-
-[00:00:00.341] (16f417000) INFO   insert into t values(76, …; rows: 0, elapsed: 211.375µs
-
-insert into
-  t
-values
-(76, 152)
-
-[00:00:00.341] (170477000) INFO   insert into t values(77, …; rows: 0, elapsed: 170.125µs
-
-insert into
-  t
-values
-(77, 154)
-
-[00:00:00.342] (170477000) INFO   insert into t values(78, …; rows: 0, elapsed: 225.791µs
-
-insert into
-  t
-values
-(78, 156)
-
-[00:00:00.343] (16f417000) INFO   insert into t values(79, …; rows: 0, elapsed: 290.166µs
-
-insert into
-  t
-values
-(79, 158)
-
-[00:00:00.343] (16f417000) INFO   insert into t values(80, …; rows: 0, elapsed: 195.250µs
-
-insert into
-  t
-values
-(80, 160)
-
-[00:00:00.344] (170477000) INFO   insert into t values(81, …; rows: 0, elapsed: 245.875µs
-
-insert into
-  t
-values
-(81, 162)
-
-[00:00:00.350] (170477000) INFO   insert into t values(82, …; rows: 0, elapsed: 5.511ms
-
-insert into
-  t
-values
-(82, 164)
-
-[00:00:00.351] (170477000) INFO   insert into t values(83, …; rows: 0, elapsed: 444.000µs
-
-insert into
-  t
-values
-(83, 166)
-
-[00:00:00.354] (170477000) INFO   insert into t values(84, …; rows: 0, elapsed: 2.649ms
-
-insert into
-  t
-values
-(84, 168)
-
-[00:00:00.355] (170477000) INFO   insert into t values(85, …; rows: 0, elapsed: 211.458µs
-
-insert into
-  t
-values
-(85, 170)
-
-[00:00:00.355] (16f417000) INFO   insert into t values(86, …; rows: 0, elapsed: 228.666µs
-
-insert into
-  t
-values
-(86, 172)
-
-[00:00:00.356] (16f417000) INFO   insert into t values(87, …; rows: 0, elapsed: 237.291µs
-
-insert into
-  t
-values
-(87, 174)
-
-[00:00:00.357] (16f417000) INFO   insert into t values(88, …; rows: 0, elapsed: 319.041µs
-
-insert into
-  t
-values
-(88, 176)
-
-[00:00:00.357] (16f417000) INFO   insert into t values(89, …; rows: 0, elapsed: 224.458µs
-
-insert into
-  t
-values
-(89, 178)
-
-[00:00:00.358] (16f417000) INFO   insert into t values(90, …; rows: 0, elapsed: 204.250µs
-
-insert into
-  t
-values
-(90, 180)
-
-[00:00:00.359] (16f417000) INFO   insert into t values(91, …; rows: 0, elapsed: 216.375µs
-
-insert into
-  t
-values
-(91, 182)
-
-[00:00:00.359] (16f417000) INFO   insert into t values(92, …; rows: 0, elapsed: 252.500µs
-
-insert into
-  t
-values
-(92, 184)
-
-[00:00:00.360] (16f417000) INFO   insert into t values(93, …; rows: 0, elapsed: 212.958µs
-
-insert into
-  t
-values
-(93, 186)
-
-[00:00:00.361] (16f417000) INFO   insert into t values(94, …; rows: 0, elapsed: 279.250µs
-
-insert into
-  t
-values
-(94, 188)
-
-[00:00:00.362] (16f417000) INFO   insert into t values(95, …; rows: 0, elapsed: 304.333µs
-
-insert into
-  t
-values
-(95, 190)
-
-[00:00:00.362] (16f417000) INFO   insert into t values(96, …; rows: 0, elapsed: 331.083µs
-
-insert into
-  t
-values
-(96, 192)
-
-[00:00:00.363] (16f417000) INFO   insert into t values(97, …; rows: 0, elapsed: 343.875µs
-
-insert into
-  t
-values
-(97, 194)
-
-[00:00:00.364] (16f417000) INFO   insert into t values(98, …; rows: 0, elapsed: 255.833µs
-
-insert into
-  t
-values
-(98, 196)
-
-[00:00:00.365] (16f417000) INFO   insert into t values(99, …; rows: 0, elapsed: 257.666µs
-
-insert into
-  t
-values
+[00:00:00.224] (170963000) INFO   insert into t values …; rows: 0, elapsed: 45.253ms
+
+insert into
+  t
+values
+  (0, 0),
+(1, 2),
+(2, 4),
+(3, 6),
+(4, 8),
+(5, 10),
+(6, 12),
+(7, 14),
+(8, 16),
+(9, 18),
+(10, 20),
+(11, 22),
+(12, 24),
+(13, 26),
+(14, 28),
+(15, 30),
+(16, 32),
+(17, 34),
+(18, 36),
+(19, 38),
+(20, 40),
+(21, 42),
+(22, 44),
+(23, 46),
+(24, 48),
+(25, 50),
+(26, 52),
+(27, 54),
+(28, 56),
+(29, 58),
+(30, 60),
+(31, 62),
+(32, 64),
+(33, 66),
+(34, 68),
+(35, 70),
+(36, 72),
+(37, 74),
+(38, 76),
+(39, 78),
+(40, 80),
+(41, 82),
+(42, 84),
+(43, 86),
+(44, 88),
+(45, 90),
+(46, 92),
+(47, 94),
+(48, 96),
+(49, 98),
+(50, 100),
+(51, 102),
+(52, 104),
+(53, 106),
+(54, 108),
+(55, 110),
+(56, 112),
+(57, 114),
+(58, 116),
+(59, 118),
+(60, 120),
+(61, 122),
+(62, 124),
+(63, 126),
+(64, 128),
+(65, 130),
+(66, 132),
+(67, 134),
+(68, 136),
+(69, 138),
+(70, 140),
+(71, 142),
+(72, 144),
+(73, 146),
+(74, 148),
+(75, 150),
+(76, 152),
+(77, 154),
+(78, 156),
+(79, 158),
+(80, 160),
+(81, 162),
+(82, 164),
+(83, 166),
+(84, 168),
+(85, 170),
+(86, 172),
+(87, 174),
+(88, 176),
+(89, 178),
+(90, 180),
+(91, 182),
+(92, 184),
+(93, 186),
+(94, 188),
+(95, 190),
+(96, 192),
+(97, 194),
+(98, 196),
 (99, 198)
 
-[00:00:00.366] (170477000) INFO   commit; rows: 0, elapsed: 1.116ms
-[00:00:00.366] (170477000) INFO   insert into t values(0, …; rows: 0, elapsed: 211.294ms
+[00:00:00.226] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 31.326ms
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.231] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 1.342ms
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.236] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 2.067ms
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.240] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 457.916µs
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.242] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 421.166µs
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.245] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 375.625µs
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.246] (170757000) INFO   insert into t values …; rows: 0, elapsed: 55.871ms
 
 insert into
   t
 values
-(0, 0)
+  (200, 400),
+(201, 402),
+(202, 404),
+(203, 406),
+(204, 408),
+(205, 410),
+(206, 412),
+(207, 414),
+(208, 416),
+(209, 418),
+(210, 420),
+(211, 422),
+(212, 424),
+(213, 426),
+(214, 428),
+(215, 430),
+(216, 432),
+(217, 434),
+(218, 436),
+(219, 438),
+(220, 440),
+(221, 442),
+(222, 444),
+(223, 446),
+(224, 448),
+(225, 450),
+(226, 452),
+(227, 454),
+(228, 456),
+(229, 458),
+(230, 460),
+(231, 462),
+(232, 464),
+(233, 466),
+(234, 468),
+(235, 470),
+(236, 472),
+(237, 474),
+(238, 476),
+(239, 478),
+(240, 480),
+(241, 482),
+(242, 484),
+(243, 486),
+(244, 488),
+(245, 490),
+(246, 492),
+(247, 494),
+(248, 496),
+(249, 498),
+(250, 500),
+(251, 502),
+(252, 504),
+(253, 506),
+(254, 508),
+(255, 510),
+(256, 512),
+(257, 514),
+(258, 516),
+(259, 518),
+(260, 520),
+(261, 522),
+(262, 524),
+(263, 526),
+(264, 528),
+(265, 530),
+(266, 532),
+(267, 534),
+(268, 536),
+(269, 538),
+(270, 540),
+(271, 542),
+(272, 544),
+(273, 546),
+(274, 548),
+(275, 550),
+(276, 552),
+(277, 554),
+(278, 556),
+(279, 558),
+(280, 560),
+(281, 562),
+(282, 564),
+(283, 566),
+(284, 568),
+(285, 570),
+(286, 572),
+(287, 574),
+(288, 576),
+(289, 578),
+(290, 580),
+(291, 582),
+(292, 584),
+(293, 586),
+(294, 588),
+(295, 590),
+(296, 592),
+(297, 594),
+(298, 596),
+(299, 598)
 
-[00:00:00.402] (16f417000) INFO   insert into t values(0, …; rows: 0, elapsed: 239.356ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.402] (16fa3b000) INFO   insert into t values(0, …; rows: 0, elapsed: 219.396ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.402] (16fe53000) INFO   insert into t values(0, …; rows: 0, elapsed: 215.966ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.402] (16f417000) INFO   insert into t values(0, …; rows: 0, elapsed: 205.150ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.402] (16fc47000) INFO   insert into t values(0, …; rows: 0, elapsed: 227.059ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.402] (17005f000) INFO   insert into t values(0, …; rows: 0, elapsed: 235.897ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (16f82f000) INFO   insert into t values(0, …; rows: 0, elapsed: 231.224ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (17026b000) INFO   insert into t values(0, …; rows: 0, elapsed: 212.518ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (170477000) INFO   insert into t values(0, …; rows: 0, elapsed: 208.728ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (16f623000) INFO   insert into t values(0, …; rows: 0, elapsed: 242.672ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (16f20b000) INFO   insert into t values(0, …; rows: 0, elapsed: 223.351ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (16fa3b000) INFO   insert into t values(0, …; rows: 0, elapsed: 201.313ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.403] (16fe53000) INFO   insert into t values(0, …; rows: 0, elapsed: 198.371ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.404] (16f417000) INFO   insert into t values(0, …; rows: 0, elapsed: 194.743ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.404] (16fc47000) INFO   insert into t values(0, …; rows: 0, elapsed: 191.375ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.404] (17005f000) INFO   insert into t values(0, …; rows: 0, elapsed: 188.484ms
+[00:00:00.246] (16fb0f000) INFO   insert into t values …; rows: 0, elapsed: 74.519ms
 
 insert into
   t
 values
-(0, 0)
+  (100, 200),
+(101, 202),
+(102, 204),
+(103, 206),
+(104, 208),
+(105, 210),
+(106, 212),
+(107, 214),
+(108, 216),
+(109, 218),
+(110, 220),
+(111, 222),
+(112, 224),
+(113, 226),
+(114, 228),
+(115, 230),
+(116, 232),
+(117, 234),
+(118, 236),
+(119, 238),
+(120, 240),
+(121, 242),
+(122, 244),
+(123, 246),
+(124, 248),
+(125, 250),
+(126, 252),
+(127, 254),
+(128, 256),
+(129, 258),
+(130, 260),
+(131, 262),
+(132, 264),
+(133, 266),
+(134, 268),
+(135, 270),
+(136, 272),
+(137, 274),
+(138, 276),
+(139, 278),
+(140, 280),
+(141, 282),
+(142, 284),
+(143, 286),
+(144, 288),
+(145, 290),
+(146, 292),
+(147, 294),
+(148, 296),
+(149, 298),
+(150, 300),
+(151, 302),
+(152, 304),
+(153, 306),
+(154, 308),
+(155, 310),
+(156, 312),
+(157, 314),
+(158, 316),
+(159, 318),
+(160, 320),
+(161, 322),
+(162, 324),
+(163, 326),
+(164, 328),
+(165, 330),
+(166, 332),
+(167, 334),
+(168, 336),
+(169, 338),
+(170, 340),
+(171, 342),
+(172, 344),
+(173, 346),
+(174, 348),
+(175, 350),
+(176, 352),
+(177, 354),
+(178, 356),
+(179, 358),
+(180, 360),
+(181, 362),
+(182, 364),
+(183, 366),
+(184, 368),
+(185, 370),
+(186, 372),
+(187, 374),
+(188, 376),
+(189, 378),
+(190, 380),
+(191, 382),
+(192, 384),
+(193, 386),
+(194, 388),
+(195, 390),
+(196, 392),
+(197, 394),
+(198, 396),
+(199, 398)
 
-[00:00:00.404] (16f82f000) INFO   insert into t values(0, …; rows: 0, elapsed: 185.640ms
+[00:00:00.246] (170963000) INFO   insert into t values …; rows: 0, elapsed: 36.864ms
 
 insert into
   t
 values
-(0, 0)
+  (300, 600),
+(301, 602),
+(302, 604),
+(303, 606),
+(304, 608),
+(305, 610),
+(306, 612),
+(307, 614),
+(308, 616),
+(309, 618),
+(310, 620),
+(311, 622),
+(312, 624),
+(313, 626),
+(314, 628),
+(315, 630),
+(316, 632),
+(317, 634),
+(318, 636),
+(319, 638),
+(320, 640),
+(321, 642),
+(322, 644),
+(323, 646),
+(324, 648),
+(325, 650),
+(326, 652),
+(327, 654),
+(328, 656),
+(329, 658),
+(330, 660),
+(331, 662),
+(332, 664),
+(333, 666),
+(334, 668),
+(335, 670),
+(336, 672),
+(337, 674),
+(338, 676),
+(339, 678),
+(340, 680),
+(341, 682),
+(342, 684),
+(343, 686),
+(344, 688),
+(345, 690),
+(346, 692),
+(347, 694),
+(348, 696),
+(349, 698),
+(350, 700),
+(351, 702),
+(352, 704),
+(353, 706),
+(354, 708),
+(355, 710),
+(356, 712),
+(357, 714),
+(358, 716),
+(359, 718),
+(360, 720),
+(361, 722),
+(362, 724),
+(363, 726),
+(364, 728),
+(365, 730),
+(366, 732),
+(367, 734),
+(368, 736),
+(369, 738),
+(370, 740),
+(371, 742),
+(372, 744),
+(373, 746),
+(374, 748),
+(375, 750),
+(376, 752),
+(377, 754),
+(378, 756),
+(379, 758),
+(380, 760),
+(381, 762),
+(382, 764),
+(383, 766),
+(384, 768),
+(385, 770),
+(386, 772),
+(387, 774),
+(388, 776),
+(389, 778),
+(390, 780),
+(391, 782),
+(392, 784),
+(393, 786),
+(394, 788),
+(395, 790),
+(396, 792),
+(397, 794),
+(398, 796),
+(399, 798)
 
-[00:00:00.404] (17026b000) INFO   insert into t values(0, …; rows: 0, elapsed: 182.849ms
+[00:00:00.248] (1012a0580) INFO   SET sql_mode=(SELECT CONCAT(@@sql_mode, ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION')),time_zone='+00:00',NAMES …; rows: 0, elapsed: 426.000µs
+
+SET
+  sql_mode =(
+    SELECT
+      CONCAT(
+        @ @sql_mode,
+        ',PIPES_AS_CONCAT,NO_ENGINE_SUBSTITUTION'
+      )
+  ),
+  time_zone = '+00:00',
+  NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+[00:00:00.256] (17054b000) INFO   insert into t values …; rows: 0, elapsed: 9.877ms
 
 insert into
   t
 values
-(0, 0)
+  (500, 1000),
+(501, 1002),
+(502, 1004),
+(503, 1006),
+(504, 1008),
+(505, 1010),
+(506, 1012),
+(507, 1014),
+(508, 1016),
+(509, 1018),
+(510, 1020),
+(511, 1022),
+(512, 1024),
+(513, 1026),
+(514, 1028),
+(515, 1030),
+(516, 1032),
+(517, 1034),
+(518, 1036),
+(519, 1038),
+(520, 1040),
+(521, 1042),
+(522, 1044),
+(523, 1046),
+(524, 1048),
+(525, 1050),
+(526, 1052),
+(527, 1054),
+(528, 1056),
+(529, 1058),
+(530, 1060),
+(531, 1062),
+(532, 1064),
+(533, 1066),
+(534, 1068),
+(535, 1070),
+(536, 1072),
+(537, 1074),
+(538, 1076),
+(539, 1078),
+(540, 1080),
+(541, 1082),
+(542, 1084),
+(543, 1086),
+(544, 1088),
+(545, 1090),
+(546, 1092),
+(547, 1094),
+(548, 1096),
+(549, 1098),
+(550, 1100),
+(551, 1102),
+(552, 1104),
+(553, 1106),
+(554, 1108),
+(555, 1110),
+(556, 1112),
+(557, 1114),
+(558, 1116),
+(559, 1118),
+(560, 1120),
+(561, 1122),
+(562, 1124),
+(563, 1126),
+(564, 1128),
+(565, 1130),
+(566, 1132),
+(567, 1134),
+(568, 1136),
+(569, 1138),
+(570, 1140),
+(571, 1142),
+(572, 1144),
+(573, 1146),
+(574, 1148),
+(575, 1150),
+(576, 1152),
+(577, 1154),
+(578, 1156),
+(579, 1158),
+(580, 1160),
+(581, 1162),
+(582, 1164),
+(583, 1166),
+(584, 1168),
+(585, 1170),
+(586, 1172),
+(587, 1174),
+(588, 1176),
+(589, 1178),
+(590, 1180),
+(591, 1182),
+(592, 1184),
+(593, 1186),
+(594, 1188),
+(595, 1190),
+(596, 1192),
+(597, 1194),
+(598, 1196),
+(599, 1198)
 
-[00:00:00.404] (170477000) INFO   insert into t values(0, …; rows: 0, elapsed: 179.861ms
+[00:00:00.257] (17033f000) INFO   insert into t values …; rows: 0, elapsed: 10.601ms
 
 insert into
   t
 values
-(0, 0)
+  (400, 800),
+(401, 802),
+(402, 804),
+(403, 806),
+(404, 808),
+(405, 810),
+(406, 812),
+(407, 814),
+(408, 816),
+(409, 818),
+(410, 820),
+(411, 822),
+(412, 824),
+(413, 826),
+(414, 828),
+(415, 830),
+(416, 832),
+(417, 834),
+(418, 836),
+(419, 838),
+(420, 840),
+(421, 842),
+(422, 844),
+(423, 846),
+(424, 848),
+(425, 850),
+(426, 852),
+(427, 854),
+(428, 856),
+(429, 858),
+(430, 860),
+(431, 862),
+(432, 864),
+(433, 866),
+(434, 868),
+(435, 870),
+(436, 872),
+(437, 874),
+(438, 876),
+(439, 878),
+(440, 880),
+(441, 882),
+(442, 884),
+(443, 886),
+(444, 888),
+(445, 890),
+(446, 892),
+(447, 894),
+(448, 896),
+(449, 898),
+(450, 900),
+(451, 902),
+(452, 904),
+(453, 906),
+(454, 908),
+(455, 910),
+(456, 912),
+(457, 914),
+(458, 916),
+(459, 918),
+(460, 920),
+(461, 922),
+(462, 924),
+(463, 926),
+(464, 928),
+(465, 930),
+(466, 932),
+(467, 934),
+(468, 936),
+(469, 938),
+(470, 940),
+(471, 942),
+(472, 944),
+(473, 946),
+(474, 948),
+(475, 950),
+(476, 952),
+(477, 954),
+(478, 956),
+(479, 958),
+(480, 960),
+(481, 962),
+(482, 964),
+(483, 966),
+(484, 968),
+(485, 970),
+(486, 972),
+(487, 974),
+(488, 976),
+(489, 978),
+(490, 980),
+(491, 982),
+(492, 984),
+(493, 986),
+(494, 988),
+(495, 990),
+(496, 992),
+(497, 994),
+(498, 996),
+(499, 998)
 
-[00:00:00.404] (16f623000) INFO   insert into t values(0, …; rows: 0, elapsed: 175.862ms
+[00:00:00.265] (170133000) INFO   insert into t values …; rows: 0, elapsed: 9.111ms
 
 insert into
   t
 values
-(0, 0)
+  (700, 1400),
+(701, 1402),
+(702, 1404),
+(703, 1406),
+(704, 1408),
+(705, 1410),
+(706, 1412),
+(707, 1414),
+(708, 1416),
+(709, 1418),
+(710, 1420),
+(711, 1422),
+(712, 1424),
+(713, 1426),
+(714, 1428),
+(715, 1430),
+(716, 1432),
+(717, 1434),
+(718, 1436),
+(719, 1438),
+(720, 1440),
+(721, 1442),
+(722, 1444),
+(723, 1446),
+(724, 1448),
+(725, 1450),
+(726, 1452),
+(727, 1454),
+(728, 1456),
+(729, 1458),
+(730, 1460),
+(731, 1462),
+(732, 1464),
+(733, 1466),
+(734, 1468),
+(735, 1470),
+(736, 1472),
+(737, 1474),
+(738, 1476),
+(739, 1478),
+(740, 1480),
+(741, 1482),
+(742, 1484),
+(743, 1486),
+(744, 1488),
+(745, 1490),
+(746, 1492),
+(747, 1494),
+(748, 1496),
+(749, 1498),
+(750, 1500),
+(751, 1502),
+(752, 1504),
+(753, 1506),
+(754, 1508),
+(755, 1510),
+(756, 1512),
+(757, 1514),
+(758, 1516),
+(759, 1518),
+(760, 1520),
+(761, 1522),
+(762, 1524),
+(763, 1526),
+(764, 1528),
+(765, 1530),
+(766, 1532),
+(767, 1534),
+(768, 1536),
+(769, 1538),
+(770, 1540),
+(771, 1542),
+(772, 1544),
+(773, 1546),
+(774, 1548),
+(775, 1550),
+(776, 1552),
+(777, 1554),
+(778, 1556),
+(779, 1558),
+(780, 1560),
+(781, 1562),
+(782, 1564),
+(783, 1566),
+(784, 1568),
+(785, 1570),
+(786, 1572),
+(787, 1574),
+(788, 1576),
+(789, 1578),
+(790, 1580),
+(791, 1582),
+(792, 1584),
+(793, 1586),
+(794, 1588),
+(795, 1590),
+(796, 1592),
+(797, 1594),
+(798, 1596),
+(799, 1598)
 
-[00:00:00.404] (16f20b000) INFO   insert into t values(0, …; rows: 0, elapsed: 133.004ms
+[00:00:00.265] (16fb0f000) INFO   insert into t values …; rows: 0, elapsed: 15.269ms
 
 insert into
   t
 values
-(0, 0)
+  (600, 1200),
+(601, 1202),
+(602, 1204),
+(603, 1206),
+(604, 1208),
+(605, 1210),
+(606, 1212),
+(607, 1214),
+(608, 1216),
+(609, 1218),
+(610, 1220),
+(611, 1222),
+(612, 1224),
+(613, 1226),
+(614, 1228),
+(615, 1230),
+(616, 1232),
+(617, 1234),
+(618, 1236),
+(619, 1238),
+(620, 1240),
+(621, 1242),
+(622, 1244),
+(623, 1246),
+(624, 1248),
+(625, 1250),
+(626, 1252),
+(627, 1254),
+(628, 1256),
+(629, 1258),
+(630, 1260),
+(631, 1262),
+(632, 1264),
+(633, 1266),
+(634, 1268),
+(635, 1270),
+(636, 1272),
+(637, 1274),
+(638, 1276),
+(639, 1278),
+(640, 1280),
+(641, 1282),
+(642, 1284),
+(643, 1286),
+(644, 1288),
+(645, 1290),
+(646, 1292),
+(647, 1294),
+(648, 1296),
+(649, 1298),
+(650, 1300),
+(651, 1302),
+(652, 1304),
+(653, 1306),
+(654, 1308),
+(655, 1310),
+(656, 1312),
+(657, 1314),
+(658, 1316),
+(659, 1318),
+(660, 1320),
+(661, 1322),
+(662, 1324),
+(663, 1326),
+(664, 1328),
+(665, 1330),
+(666, 1332),
+(667, 1334),
+(668, 1336),
+(669, 1338),
+(670, 1340),
+(671, 1342),
+(672, 1344),
+(673, 1346),
+(674, 1348),
+(675, 1350),
+(676, 1352),
+(677, 1354),
+(678, 1356),
+(679, 1358),
+(680, 1360),
+(681, 1362),
+(682, 1364),
+(683, 1366),
+(684, 1368),
+(685, 1370),
+(686, 1372),
+(687, 1374),
+(688, 1376),
+(689, 1378),
+(690, 1380),
+(691, 1382),
+(692, 1384),
+(693, 1386),
+(694, 1388),
+(695, 1390),
+(696, 1392),
+(697, 1394),
+(698, 1396),
+(699, 1398)
 
-[00:00:00.405] (16fa3b000) INFO   insert into t values(0, …; rows: 0, elapsed: 129.926ms
+[00:00:00.266] (170757000) INFO   insert into t values …; rows: 0, elapsed: 3.786ms
 
 insert into
   t
 values
-(0, 0)
+  (900, 1800),
+(901, 1802),
+(902, 1804),
+(903, 1806),
+(904, 1808),
+(905, 1810),
+(906, 1812),
+(907, 1814),
+(908, 1816),
+(909, 1818),
+(910, 1820),
+(911, 1822),
+(912, 1824),
+(913, 1826),
+(914, 1828),
+(915, 1830),
+(916, 1832),
+(917, 1834),
+(918, 1836),
+(919, 1838),
+(920, 1840),
+(921, 1842),
+(922, 1844),
+(923, 1846),
+(924, 1848),
+(925, 1850),
+(926, 1852),
+(927, 1854),
+(928, 1856),
+(929, 1858),
+(930, 1860),
+(931, 1862),
+(932, 1864),
+(933, 1866),
+(934, 1868),
+(935, 1870),
+(936, 1872),
+(937, 1874),
+(938, 1876),
+(939, 1878),
+(940, 1880),
+(941, 1882),
+(942, 1884),
+(943, 1886),
+(944, 1888),
+(945, 1890),
+(946, 1892),
+(947, 1894),
+(948, 1896),
+(949, 1898),
+(950, 1900),
+(951, 1902),
+(952, 1904),
+(953, 1906),
+(954, 1908),
+(955, 1910),
+(956, 1912),
+(957, 1914),
+(958, 1916),
+(959, 1918),
+(960, 1920),
+(961, 1922),
+(962, 1924),
+(963, 1926),
+(964, 1928),
+(965, 1930),
+(966, 1932),
+(967, 1934),
+(968, 1936),
+(969, 1938),
+(970, 1940),
+(971, 1942),
+(972, 1944),
+(973, 1946),
+(974, 1948),
+(975, 1950),
+(976, 1952),
+(977, 1954),
+(978, 1956),
+(979, 1958),
+(980, 1960),
+(981, 1962),
+(982, 1964),
+(983, 1966),
+(984, 1968),
+(985, 1970),
+(986, 1972),
+(987, 1974),
+(988, 1976),
+(989, 1978),
+(990, 1980),
+(991, 1982),
+(992, 1984),
+(993, 1986),
+(994, 1988),
+(995, 1990),
+(996, 1992),
+(997, 1994),
+(998, 1996),
+(999, 1998)
 
-[00:00:00.405] (16fe53000) INFO   insert into t values(0, …; rows: 0, elapsed: 117.576ms
+[00:00:00.266] (16f903000) INFO   insert into t values …; rows: 0, elapsed: 6.534ms
 
 insert into
   t
 values
-(0, 0)
-
-[00:00:00.405] (16f417000) INFO   insert into t values(0, …; rows: 0, elapsed: 99.998ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.405] (16fc47000) INFO   insert into t values(0, …; rows: 0, elapsed: 97.602ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.405] (17005f000) INFO   insert into t values(0, …; rows: 0, elapsed: 94.628ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.405] (16f82f000) INFO   insert into t values(0, …; rows: 0, elapsed: 90.909ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.406] (17026b000) INFO   insert into t values(0, …; rows: 0, elapsed: 88.570ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.406] (170477000) INFO   insert into t values(0, …; rows: 0, elapsed: 85.753ms
-
-insert into
-  t
-values
-(0, 0)
-
-[00:00:00.406] (16f623000) INFO   insert into t values(0, …; rows: 0, elapsed: 83.182ms
-
-insert into
-  t
-values
-(0, 0)
+  (800, 1600),
+(801, 1602),
+(802, 1604),
+(803, 1606),
+(804, 1608),
+(805, 1610),
+(806, 1612),
+(807, 1614),
+(808, 1616),
+(809, 1618),
+(810, 1620),
+(811, 1622),
+(812, 1624),
+(813, 1626),
+(814, 1628),
+(815, 1630),
+(816, 1632),
+(817, 1634),
+(818, 1636),
+(819, 1638),
+(820, 1640),
+(821, 1642),
+(822, 1644),
+(823, 1646),
+(824, 1648),
+(825, 1650),
+(826, 1652),
+(827, 1654),
+(828, 1656),
+(829, 1658),
+(830, 1660),
+(831, 1662),
+(832, 1664),
+(833, 1666),
+(834, 1668),
+(835, 1670),
+(836, 1672),
+(837, 1674),
+(838, 1676),
+(839, 1678),
+(840, 1680),
+(841, 1682),
+(842, 1684),
+(843, 1686),
+(844, 1688),
+(845, 1690),
+(846, 1692),
+(847, 1694),
+(848, 1696),
+(849, 1698),
+(850, 1700),
+(851, 1702),
+(852, 1704),
+(853, 1706),
+(854, 1708),
+(855, 1710),
+(856, 1712),
+(857, 1714),
+(858, 1716),
+(859, 1718),
+(860, 1720),
+(861, 1722),
+(862, 1724),
+(863, 1726),
+(864, 1728),
+(865, 1730),
+(866, 1732),
+(867, 1734),
+(868, 1736),
+(869, 1738),
+(870, 1740),
+(871, 1742),
+(872, 1744),
+(873, 1746),
+(874, 1748),
+(875, 1750),
+(876, 1752),
+(877, 1754),
+(878, 1756),
+(879, 1758),
+(880, 1760),
+(881, 1762),
+(882, 1764),
+(883, 1766),
+(884, 1768),
+(885, 1770),
+(886, 1772),
+(887, 1774),
+(888, 1776),
+(889, 1778),
+(890, 1780),
+(891, 1782),
+(892, 1784),
+(893, 1786),
+(894, 1788),
+(895, 1790),
+(896, 1792),
+(897, 1794),
+(898, 1796),
+(899, 1798)
 
