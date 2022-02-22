@@ -21,14 +21,14 @@ async fn main() -> Result<()> {
 
     let mut conn = pool.acquire().await?;
     conn.execute("use test").await?;
-    conn.execute("drop table if exists test").await?;
+    conn.execute("drop table if exists t").await?;
     conn.execute("create table t(a int primary key, b int)")
         .await?;
     drop(conn);
 
     let mut handles = Vec::new();
     let batch_size = 100;
-    let max = 10_00 / batch_size;
+    let max = 10_000_000 / batch_size;
     for _ in 0..32 {
         let mut conn = pool.acquire().await?;
         handles.push(tokio::spawn(async move {
