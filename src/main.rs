@@ -31,9 +31,14 @@ async fn main() -> Result<()> {
     conn1.execute("set @@tidb_general_log=1").await?; // ensure partition is supported
     let (tx, rx1) = channel(1);
     let rx2 = tx.subscribe();
-    tokio::spawn(async move { dml_worker(&mut conn1, rx1).await });
-    tokio::spawn(async move { ddl_worker(&mut conn2, rx2).await });
-    tokio::time::sleep(Duration::from_secs(60 * 60 * 24)).await;
-    tx.send(()).unwrap();
+    let h1 = tokio::spawn(async move { dml_worker(&mut conn1, rx1).await });
+    let h2 = tokio::spawn(async move { ddl_worker(&mut conn2, rx2).await });
+    tokio::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(60 * 60 * 24)).await;
+        tx.send(()).unwrap();
+    });
+
+    h1.await.unwrap()?;
+    h2.await.unwrap()?;
     Ok(())
 }

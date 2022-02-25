@@ -37,15 +37,12 @@ async fn drop_index(conn: &mut MySqlConnection) -> Result<()> {
 
 pub async fn dml_worker(conn: &mut MySqlConnection, mut rx: Receiver<()>) -> Result<()> {
     conn.execute("use test").await?;
-    let mut rng = StdRng::from_rng(rand::thread_rng())?;
     loop {
         if rx.try_recv().is_ok() {
             break;
         }
         insert(conn).await?;
-        sleep(&mut rng).await;
         delete(conn).await?;
-        sleep(&mut rng).await;
     }
     Ok(())
 }
@@ -66,5 +63,5 @@ pub async fn ddl_worker(conn: &mut MySqlConnection, mut rx: Receiver<()>) -> Res
 }
 
 async fn sleep(rng: &mut StdRng) {
-    tokio::time::sleep(Duration::from_millis(rng.gen_range::<u64, _>(0..=300))).await;
+    tokio::time::sleep(Duration::from_millis(rng.gen_range::<u64, _>(0..=10))).await;
 }
