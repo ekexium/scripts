@@ -26,7 +26,7 @@ pub async fn create_table(conn: &mut MySqlConnection) -> Result<()> {
 }
 
 async fn add_index(conn: &mut MySqlConnection) -> Result<()> {
-    conn.execute("ALTER TABLE `473d9750-7369-4822-91b0-bc6705131333` ADD INDEX `ef9e02dc-578b-4e7f-acd6-0d0fbbe919f5` (`c1c104bf-2899-4776-8a94-f01f9d728c74`)").await?;
+    conn.execute("ALTER TABLE `473d9750-7369-4822-91b0-bc6705131333` ADD INDEX `ef9e02dc-578b-4e7f-acd6-0d0fbbe919f5` (`4af7ba24-c2fa-4deb-8af2-58d5f98783d0`)").await?;
     Ok(())
 }
 
