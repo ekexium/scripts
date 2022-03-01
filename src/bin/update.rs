@@ -53,13 +53,18 @@ async fn main() -> Result<()> {
                 if end_rx.try_recv().is_ok() {
                     break;
                 }
-                conn.execute("begin").await.expect("begin should not fail");
+                let res = conn.execute("begin").await;
+                if res.is_err() {
+                    continue;
+                }
                 // for update or not??
                 let res = query("select val from cycle where sk = 1 for update")
                     .fetch_one(&mut conn)
-                    .await
-                    .unwrap();
-                let val: i32 = res.get("val");
+                    .await;
+                if res.is_err() {
+                    continue;
+                }
+                let val: i32 = res.unwrap().get("val");
                 let res = conn
                     .execute(format!("update cycle set val = {} where sk = 1;", val + 1).as_str())
                     .await;
