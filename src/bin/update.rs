@@ -74,12 +74,14 @@ async fn main() -> Result<()> {
     select! {
         _ = error_rx.recv() => {
             info!("assertion failed");
+            println!("assertion failed");
         },
         _ = join_all(handles) => {
             error!("unexpected update finished");
         },
         _ = tokio::time::sleep(Duration::from_secs(60 * 60 * 24)) => {
-            info!("time ends")
+            info!("time up");
+            println!("time up");
         }
     };
     end_tx.send(()).unwrap();
