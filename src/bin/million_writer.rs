@@ -12,7 +12,7 @@ static COUNTER: AtomicU32 = AtomicU32::new(0);
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    simple_logging::log_to_file("dmlddl.log", LevelFilter::Info)?;
+    simple_logging::log_to_file("million_writer.log", LevelFilter::Info)?;
     let pool = MySqlPoolOptions::new()
         .max_connections(500)
         .connect("mysql://root@172.16.5.181:4000/test")
