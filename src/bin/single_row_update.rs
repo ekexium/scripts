@@ -11,16 +11,16 @@ async fn main() -> Result<()> {
         .await?;
     let mut conn = pool.acquire().await?;
     conn.execute("drop table if exists t").await?;
-    conn.execute("create table t (id varchar(128), v int, primary key (id));")
+    conn.execute("create table t (pk int, id int, v int, primary key (pk), unique key i1(id));")
         .await?;
     // conn.execute("insert into t values (1,1);").await?;
     let mut v = 1;
     loop {
         v += 1;
         conn.execute(query("select * from t use index(primary) where id = 1")).await?;
-        // conn.execute(query("begin pessimistic")).await?;
+        conn.execute(query("begin pessimistic")).await?;
         conn.execute(query("update t set v = ? where id = 1;").bind(v))
             .await?;
-        // conn.execute(query("commit")).await?;
+        conn.execute(query("commit")).await?;
     }
 }
