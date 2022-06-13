@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
     let mut v = 1;
     loop {
         v += 1;
-        conn.execute(query("select * from t where id = 1")).await?;
+        conn.execute(query("select * from t use index(primary) where id = 1")).await?;
         // conn.execute(query("begin pessimistic")).await?;
         conn.execute(query("update t set v = ? where id = 1;").bind(v))
             .await?;
