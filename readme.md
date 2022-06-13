@@ -1,1 +1,1 @@
-Do simple jobs.
+Some little jobs that help me do testing, benchmarking, etc.
