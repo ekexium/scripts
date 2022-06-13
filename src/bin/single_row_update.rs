@@ -17,9 +17,10 @@ async fn main() -> Result<()> {
     let mut v = 1;
     loop {
         v += 1;
-        conn.execute("begin pessimistic").await?;
+        conn.execute(query("select * from t where id = 1")).await?;
+        conn.execute(query("begin pessimistic")).await?;
         conn.execute(query("update t set v = ? where id = 1;").bind(v))
             .await?;
-        conn.execute("commit").await?;
+        conn.execute(query("commit")).await?;
     }
 }
