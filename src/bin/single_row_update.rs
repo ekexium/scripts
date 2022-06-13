@@ -1,4 +1,4 @@
-//! to reproduce https://github.com/pingcap/tidb/issues/25659
+//! to reproduce https://github.com/pingcap/tidb/issues/25659, https://github.com/pingcap/tidb/issues/33393
 //!
 use dmlddl::Result;
 use sqlx::mysql::MySqlPoolOptions;
@@ -13,14 +13,14 @@ async fn main() -> Result<()> {
     conn.execute("drop table if exists t").await?;
     conn.execute("create table t (id varchar(128), v int, primary key (id));")
         .await?;
-    conn.execute("insert into t values (1,1);").await?;
+    // conn.execute("insert into t values (1,1);").await?;
     let mut v = 1;
     loop {
         v += 1;
         conn.execute(query("select * from t where id = 1")).await?;
-        conn.execute(query("begin pessimistic")).await?;
+        // conn.execute(query("begin pessimistic")).await?;
         conn.execute(query("update t set v = ? where id = 1;").bind(v))
             .await?;
-        conn.execute(query("commit")).await?;
+        // conn.execute(query("commit")).await?;
     }
 }
