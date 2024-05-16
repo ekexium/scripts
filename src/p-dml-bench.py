@@ -4,6 +4,8 @@ import pymysql
 import csv
 import time
 from tests import tests
+from datetime import datetime
+import tzlocal
 
 
 def create_db_connection(host_name, port_number, user_name, user_password, db_name):
@@ -54,6 +56,7 @@ def execute_statement_with_hint_option(
         if len(parts) > 1:
             statement = parts[0] + " /*+ SET_VAR(tidb_dml_type=bulk) */ " + parts[1]
     time.sleep(interval)
+    print(datetime.now(tzlocal.get_localzone()))
     print(statement)
     start_time = time.time()
     with connection.cursor() as cursor:
@@ -230,7 +233,7 @@ def main(
             "min flush keys",
             "min flush size",
             "force flush size",
-            "max chunk size"
+            "max chunk size",
             "bulk",
             "table",
             "latency",
@@ -251,8 +254,8 @@ main(
     "root",
     "",
     db_name="test",
-    limit=10000000,
-    interval=60,
+    limit=1000000,
+    interval=30,
     source_table="sbtest1",
     target_tables=["target_table"],
 )
