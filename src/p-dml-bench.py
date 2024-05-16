@@ -72,6 +72,7 @@ def execute_init_statements(
     min_flush_keys,
     min_flush_mem_size,
     force_flush_size,
+    max_chunk_size,
 ):
     with connection.cursor() as cursor:
         cursor.execute("set @@tidb_mem_quota_query=5000000000")
@@ -83,6 +84,8 @@ def execute_init_statements(
             cursor.execute(
                 f"set @@tidb_force_flush_mem_size_threshold={force_flush_size}"
             )
+        if max_chunk_size is not None:
+            cursor.execute(f"set @@tidb_max_chunk_size={max_chunk_size}")
         for statement in init_statements:
             formatted_statement = replace_stmt_place_holder(
                 statement,
@@ -136,11 +139,13 @@ def main(
         """ DROP TABLE IF EXISTS target_table""",
         f"CREATE TABLE `target_table` LIKE {source_table}",
     ]
+    # min_flush_keys, min_flush_mem_size, force_flush_mem_size_threshold, max_chunk_size
     configs = [
-        [1000, 16 * 1024, 128 * 1024 * 1024],
-        [1000, 16 * 1024 * 1024, 128 * 1024 * 1024],
-        [10000, 16 * 1024, 128 * 1024 * 1024],
-        [10000, 16 * 1024 * 1024, 128 * 1024 * 1024],
+        [100, 1, None, 32],
+        [100, 1, None, 1024],
+        [1000, 1, None, 32],
+        [10000, 1, None, 32],
+        [10000, 1, None, 1024],
     ]
     use_bulk = [True]
 
@@ -164,7 +169,12 @@ def main(
 
     for test in tests:
         for table_name in target_tables:
-            for min_flush_keys, min_flush_mem_size, force_flush_threshold in configs:
+            for (
+                min_flush_keys,
+                min_flush_mem_size,
+                force_flush_threshold,
+                max_chunk_size,
+            ) in configs:
                 for bulk in use_bulk:
                     print()
                     print(
@@ -173,6 +183,7 @@ def main(
                             f"min_flush_keys={min_flush_keys}, "
                             f"min_flush_mem_size={min_flush_mem_size}, "
                             f"force_flush_threshold={force_flush_threshold}, "
+                            f"max_chunk_size={max_chunk_size}, "
                             f"use_bulk={bulk}"
                         )
                     )
@@ -185,6 +196,7 @@ def main(
                         min_flush_keys,
                         min_flush_mem_size,
                         force_flush_threshold,
+                        max_chunk_size,
                     )
                     latency, flush_wait = execute_statement_with_hint_option(
                         connection,
@@ -203,6 +215,7 @@ def main(
                         min_flush_keys,
                         min_flush_mem_size,
                         force_flush_threshold,
+                        max_chunk_size,
                         bulk,
                         table_name,
                         f"{latency:.2f}",
@@ -217,6 +230,7 @@ def main(
             "min flush keys",
             "min flush size",
             "force flush size",
+            "max chunk size"
             "bulk",
             "table",
             "latency",
@@ -237,8 +251,8 @@ main(
     "root",
     "",
     db_name="test",
-    limit=1000000,
-    interval=10,
+    limit=10000000,
+    interval=60,
     source_table="sbtest1",
     target_tables=["target_table"],
 )
