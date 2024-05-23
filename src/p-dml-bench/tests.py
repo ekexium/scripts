@@ -33,7 +33,7 @@ tests = [
             "TRUNCATE {target_table}",
             "/*prepare data*/ INSERT /*+ SET_VAR(tidb_dml_type=bulk) */ INTO {target_table} SELECT * from {source_table} limit {limit};",
         ],
-        "statement": "UPDATE {target_table} SET k=k+1",
+        "statement": "UPDATE {target_table} SET {column}={column}-1",
     },
     {
         "alias": "delete",

@@ -20,14 +20,15 @@ def create_db_connection(host_name, port_number, user_name, user_password, db_na
     return connection
 
 
-def replace_stmt_place_holder(stmt, target_table, source_table, limit):
-    stmt = stmt.replace("{target_table}", target_table)
-    stmt = stmt.replace("{source_table}", source_table)
+def replace_stmt_place_holder(stmt, workload, limit):
+    stmt = stmt.replace("{target_table}", workload.target_table)
+    stmt = stmt.replace("{source_table}", workload.source_table)
     stmt = stmt.replace("{limit}", str(limit))
+    stmt = stmt.replace("{column}", str(workload.column))
     return stmt
 
 
-def get_flush_wait_ms(conn):
+def get_flush_metrics(conn):
     with conn.cursor() as cursor:
         # Query the @@tidb_last_txn_info variable
         cursor.execute("SELECT @@tidb_last_txn_info")
@@ -38,18 +39,19 @@ def get_flush_wait_ms(conn):
 
         # Extract the flush_wait_ms value
         flush_wait_ms = txn_info.get("flush_wait_ms")
+        dump_ms = txn_info.get("dump_ms")
 
-        return flush_wait_ms
+        return flush_wait_ms / 1000.0, dump_ms / 1000.0 if dump_ms is not None else 0
 
 
 def execute_statement_with_hint_option(
-    connection, statement, target_table, source_table, limit, use_hint, interval
+    connection, statement, workload, limit, use_hint, interval,
 ):
     """
     Return the execution time and flush wait time of the statement, in seconds
     """
     statement = replace_stmt_place_holder(
-        statement, target_table=target_table, source_table=source_table, limit=limit
+        statement, workload, limit=limit,
     )
     if use_hint:
         parts = statement.split(" ", 1)
@@ -62,15 +64,14 @@ def execute_statement_with_hint_option(
     with connection.cursor() as cursor:
         cursor.execute(statement)
     exec_time = time.time() - start_time
-    flush_wait_time = get_flush_wait_ms(connection) / 1000.0
-    return exec_time, flush_wait_time
+    flush_wait_time, dump_time = get_flush_metrics(connection)
+    return exec_time, flush_wait_time, dump_time
 
 
 def execute_init_statements(
     connection,
     init_statements,
-    target_table,
-    source_table,
+    workload,
     limit,
     min_flush_keys,
     min_flush_mem_size,
@@ -92,16 +93,17 @@ def execute_init_statements(
         for statement in init_statements:
             formatted_statement = replace_stmt_place_holder(
                 statement,
-                target_table=target_table,
-                source_table=source_table,
+                workload,
                 limit=limit,
             )
+            print("initializing: " + formatted_statement)
             cursor.execute(formatted_statement)
 
 
-def init_target_tables(connection, table_initialization_statements):
+def init_target_table(connection, table_initialization_statements):
     for statement in table_initialization_statements:
         with connection.cursor() as cursor:
+            print("initializing:", statement)
             cursor.execute(statement)
 
 
@@ -126,6 +128,18 @@ def table_exists_and_row_count(connection, table_name):
     return table_exists, row_count
 
 
+def dbgen(template_file, num_rows):
+    subprocess.run("rm -rf out_dir", shell=True)
+    command = f"dbgen -i {template_file} -o out_dir -N {num_rows} -R 500000 -r 500000"
+    subprocess.run(command, shell=True)
+
+class Workload:
+    def __init__(self, name, source_table, target_table, column):
+        self.name = name
+        self.source_table = source_table
+        self.target_table = target_table
+        self.column = column
+
 def main(
     host,
     port,
@@ -134,97 +148,104 @@ def main(
     db_name,
     limit,
     interval,
-    source_table,
-    target_tables,
-    skip_standard=True,
+    workload,
 ):
     table_initialization_statements = [
-        """ DROP TABLE IF EXISTS target_table""",
-        f"CREATE TABLE `target_table` LIKE {source_table}",
+        f"DROP TABLE IF EXISTS {workload.target_table}",
+        f"CREATE TABLE {workload.target_table} LIKE {workload.source_table}",
     ]
     # min_flush_keys, min_flush_mem_size, force_flush_mem_size_threshold, max_chunk_size
     configs = [
-        [100, 1, None, 32],
-        [100, 1, None, 1024],
-        [1000, 1, None, 32],
-        [10000, 1, None, 32],
-        [10000, 1, None, 1024],
+        [100, 0, None, 1024],
+        [1000, 0, None, 1024],
+        [10000, 0, None, 1024],
     ]
     use_bulk = [True]
 
     connection = create_db_connection(host, port, user_name, user_password, db_name)
 
     # init source table
-    table_exists, row_count = table_exists_and_row_count(connection, source_table)
+    table_exists, row_count = table_exists_and_row_count(connection, workload.source_table)
     if not table_exists or row_count < limit:
         with connection.cursor() as cursor:
-            cursor.execute(f"DROP TABLE IF EXISTS {source_table}")
-        prepare_sysbench_data(host, port, db_name, limit)
+            cursor.execute(f"DROP TABLE IF EXISTS {workload.source_table}")
+        match workload.name:
+            case "sysbench":
+                prepare_sysbench_data(host, port, db_name, limit)
+            case "digiplus":
+                dbgen("digiplus.template", limit)
+                print("data files are generated. Manually import them and retry")
+                exit(0)
+                # manual import using lightning
+                pass
+            case _:
+                raise ValueError(f"Unknown schema: {workload.name}")
+
     else:
         print(
-            f"Table '{source_table}' already exists and has {row_count} rows,",
+            f"Table '{workload.source_table}' already exists and has {row_count} rows,",
             f"which is >= {limit}. No need to prepare sysbench data.",
         )
 
-    init_target_tables(connection, table_initialization_statements)
+    init_target_table(connection, table_initialization_statements)
 
     test_results = []
 
     for test in tests:
-        for table_name in target_tables:
-            for (
-                min_flush_keys,
-                min_flush_mem_size,
-                force_flush_threshold,
-                max_chunk_size,
-            ) in configs:
-                for bulk in use_bulk:
-                    print()
-                    print(
-                        (
-                            f"Running test: {test['alias']}, "
-                            f"min_flush_keys={min_flush_keys}, "
-                            f"min_flush_mem_size={min_flush_mem_size}, "
-                            f"force_flush_threshold={force_flush_threshold}, "
-                            f"max_chunk_size={max_chunk_size}, "
-                            f"use_bulk={bulk}"
-                        )
+        for (
+            min_flush_keys,
+            min_flush_mem_size,
+            force_flush_threshold,
+            max_chunk_size,
+        ) in configs:
+            for bulk in use_bulk:
+                print()
+                print(
+                    (
+                        f"Running test: {test['alias']}, "
+                        f"min_flush_keys={min_flush_keys}, "
+                        f"min_flush_mem_size={min_flush_mem_size}, "
+                        f"force_flush_threshold={force_flush_threshold}, "
+                        f"max_chunk_size={max_chunk_size}, "
+                        f"use_bulk={bulk}"
                     )
-                    execute_init_statements(
-                        connection,
-                        test["init"],
-                        table_name,
-                        source_table,
-                        limit,
-                        min_flush_keys,
-                        min_flush_mem_size,
-                        force_flush_threshold,
-                        max_chunk_size,
-                    )
-                    latency, flush_wait = execute_statement_with_hint_option(
-                        connection,
-                        test["statement"],
-                        table_name,
-                        source_table,
-                        limit,
-                        use_hint=bulk,
-                        interval=interval,
-                    )
-                    print(
-                        f"Execution time: {latency:.2f} seconds; Flush wait: {flush_wait:.2f} seconds"
-                    )
-                    row = [
-                        test["alias"],
-                        min_flush_keys,
-                        min_flush_mem_size,
-                        force_flush_threshold,
-                        max_chunk_size,
-                        bulk,
-                        table_name,
-                        f"{latency:.2f}",
-                        f"{flush_wait:.2f}",
-                    ]
-                    test_results.append(row)
+                )
+                execute_init_statements(
+                    connection,
+                    test["init"],
+                    workload,
+                    limit,
+                    min_flush_keys,
+                    min_flush_mem_size,
+                    force_flush_threshold,
+                    max_chunk_size,
+                )
+                latency, flush_wait, dump_time = execute_statement_with_hint_option(
+                    connection,
+                    test["statement"],
+                    workload,
+                    limit,
+                    use_hint=bulk,
+                    interval=interval,
+                )
+                print(
+                    f"Execution time: {latency:.2f} seconds; "
+                    f"Flush wait: {flush_wait:.2f} seconds; "
+                    f"Dump time: {dump_time:.2f} seconds"
+                )
+                row = [
+                    test["alias"],
+                    min_flush_keys,
+                    min_flush_mem_size,
+                    force_flush_threshold,
+                    max_chunk_size,
+                    bulk,
+                    workload.target_table,
+                    f"{latency:.2f}",
+                    f"{flush_wait:.2f}",
+                    f"{dump_time:.2f}"
+                ]
+                test_results.append(row)
 
     with open("test_results.csv", "w", newline="") as csvfile:
         writer = csv.writer(csvfile)
@@ -238,6 +259,7 @@ def main(
             "table",
             "latency",
             "flush wait",
+            "dump time"
         ]
         writer.writerow(header)
         for result in test_results:
@@ -247,15 +269,19 @@ def main(
 
 
 # =============================================================================
+# sysbench is totally automatic
+# digiplus needs manual data import.
+
+sysbench = Workload("sysbench", "sbtest1", "t", "k")
+digiplus = Workload("digiplus", "digiplus", "t", "id")
 
 main(
     "192.168.180.11",
-    4003,
+    4005,
     "root",
     "",
     db_name="test",
     limit=1000000,
-    interval=30,
-    source_table="sbtest1",
-    target_tables=["target_table"],
+    interval=60,
+    workload=digiplus
 )
