@@ -44,8 +44,18 @@ execute_sql_and_profile() {
     start_time=$(date +%s)
     start_time_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ" -d @"$start_time")
 
-    # Execute SQL
-    $MYSQL_CMD -e "$sql"
+    # Execute SQL and get flush_wait_ms in the same session
+    result=$($MYSQL_CMD <<EOF
+$sql;
+SELECT @@tidb_last_txn_info;
+EOF
+)
+
+    # Extract the flush_wait_ms value
+    flush_wait_ms=$(echo "$result" | grep -o '"flush_wait_ms":[0-9]*' | awk -F':' '{print $2}')
+    
+    # Convert milliseconds to seconds
+    flush_wait_seconds=$(awk "BEGIN {printf \"%.3f\", $flush_wait_ms / 1000}")
 
     # Record end time in RFC3339 format
     end_time=$(date +%s)
@@ -56,6 +66,7 @@ execute_sql_and_profile() {
 
     execution_time=$((end_time - start_time))
     echo "Execution time: $execution_time seconds"
+    echo "Flush wait time: $flush_wait_seconds seconds"
 
     # Collect Prometheus metrics
     echo "Collecting Prometheus metrics for ${operation_name}..."
@@ -89,14 +100,19 @@ execute_sql_and_profile() {
     tidb_memory_max=$(echo "$tidb_memory_response" | jq -r '.data.result[0].values | map(.[1]|tonumber) | max')
 
     # Save metrics to a file
-    echo "TiDB CPU Avg: ${tidb_cpu_avg}%" >> "${operation_name}_metrics.txt"
-    echo "TiKV CPU Avg: ${tikv_cpu_avg}%" >> "${operation_name}_metrics.txt"
-    echo "TiKV CPU Max: ${tikv_max_cpu_avg}%" >> "${operation_name}_metrics.txt"
-    echo "TiDB Memory Max: ${tidb_memory_max} MB" >> "${operation_name}_metrics.txt"
+    {
+        echo "Execution Time: ${execution_time} seconds"
+        echo "Flush Wait Time: ${flush_wait_seconds} seconds"
+        echo "TiDB CPU Avg: ${tidb_cpu_avg}%"
+        echo "TiKV CPU Avg: ${tikv_cpu_avg}%"
+        echo "TiKV CPU Max: ${tikv_max_cpu_avg}%"
+        echo "TiDB Memory Max: ${tidb_memory_max} GB"
+    } >> "${operation_name}_metrics.txt"
 
     echo "Metrics saved to ${operation_name}_metrics.txt"
     echo "-------------------------"
 }
+
 
 # Initialization
 echo "Start the benchmark. Initializing..."
