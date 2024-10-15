@@ -118,6 +118,7 @@ EOF
 echo "Start the benchmark. Initializing..."
 $MYSQL_CMD -e "drop table if exists usertable_2"
 $MYSQL_CMD -e "create table usertable_2 like usertable"
+$MYSQL_CMD -e "ALTER TABLE usertable_2 SHARD_ROW_ID_BITS = 6;"
 $MYSQL_CMD -e "set @@global.tidb_mem_quota_query=64<<30" # 64 GiB
 echo "Initialization complete."
 echo "-------------------------"
