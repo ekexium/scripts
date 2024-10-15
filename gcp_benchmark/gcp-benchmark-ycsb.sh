@@ -2,6 +2,8 @@
 
 # Usage: run with a large enough workload, otherwise metrics cannot reflect the actual performance.
 
+set -xe
+
 # Check if the required parameter is provided
 if [ $# -ne 1 ]; then
     echo "Error: Missing required parameter."
@@ -117,8 +119,11 @@ EOF
 # Initialization
 echo "Start the benchmark. Initializing..."
 $MYSQL_CMD -e "drop table if exists usertable_2"
+# $MYSQL_CMD -e "set global tidb_scatter_region = ON"
 $MYSQL_CMD -e "create table usertable_2 like usertable"
 $MYSQL_CMD -e "ALTER TABLE usertable_2 SHARD_ROW_ID_BITS = 6;"
+$MYSQL_CMD -e "SPLIT TABLE usertable_2 BETWEEN (0) AND ($ROW_LIMIT) REGIONS 64;"
+$MYSQL_CMD -e "SPLIT TABLE usertable_2 INDEX \`PRIMARY\` BETWEEN (\"user10\") AND (\"user99\") REGIONS 89;"
 $MYSQL_CMD -e "set @@global.tidb_mem_quota_query=64<<30" # 64 GiB
 echo "Initialization complete."
 echo "-------------------------"
