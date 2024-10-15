@@ -119,6 +119,7 @@ EOF
 # Initialization
 echo "Start the benchmark. Initializing..."
 $MYSQL_CMD -e "drop table if exists usertable_2"
+$MYSQL_CMD -e "set global tidb_committer_concurrency=512;"
 # $MYSQL_CMD -e "set global tidb_scatter_region = ON"
 $MYSQL_CMD -e "create table usertable_2 like usertable"
 $MYSQL_CMD -e "ALTER TABLE usertable_2 SHARD_ROW_ID_BITS = 6;"
