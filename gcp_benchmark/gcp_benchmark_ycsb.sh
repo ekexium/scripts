@@ -117,8 +117,8 @@ EOF
 # Initialization
 echo "Start the benchmark. Initializing..."
 $MYSQL_CMD -e "drop table if exists usertable_2"
-$MYSQL_CMD -e "set global tidb_committer_concurrency=512;"
-$MYSQL_CMD -e "set global tidb_shard_allocate_step=1024;"
+# $MYSQL_CMD -e "set global tidb_committer_concurrency=512;"
+$MYSQL_CMD -e "set global tidb_shard_allocate_step=32;"
 $MYSQL_CMD -e "set global tidb_scatter_region = ON" # for v7.5
 $MYSQL_CMD -e "set global tidb_scatter_region = 'table'" # for v8.4
 # $MYSQL_CMD -e "create table usertable_2 like usertable"
@@ -135,7 +135,7 @@ $MYSQL_CMD -e 'CREATE TABLE `usertable_2` (
   `FIELD8` varchar(100) DEFAULT NULL,
   `FIELD9` varchar(100) DEFAULT NULL,
   PRIMARY KEY (`YCSB_KEY`) /*T![clustered_index] NONCLUSTERED */
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin SHARD_ROW_ID_BITS=6 PRE_SPLIT_REGIONS=6'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin SHARD_ROW_ID_BITS=8 PRE_SPLIT_REGIONS=8'
 # $MYSQL_CMD -e "ALTER TABLE usertable_2 SHARD_ROW_ID_BITS = 6;"
 # $MYSQL_CMD -e "SPLIT TABLE usertable_2 BETWEEN (0) AND ($ROW_LIMIT) REGIONS 64;"
 $MYSQL_CMD -e "SPLIT TABLE usertable_2 INDEX \`PRIMARY\` BETWEEN (\"user10\") AND (\"user99\") REGIONS 89;"
