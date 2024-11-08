@@ -34,11 +34,8 @@ TIDB_MEMORY_QUERY="max(sum((process_resident_memory_bytes{job=~\"tidb\"})) by (i
 execute_sql_and_profile() {
     local sql="$1"
     local operation_name="$2"
-    echo "Executing: $sql"
-
-    # Start profiling
-    # curl http://bench-pdml-tidb-0:10080/debug/pprof/profile?seconds=30 > "${operation_name}_cpu.pprof" &
-    # PROFILE_PID=$!
+    local concurrency="$3"
+    echo "Executing: $sql (flush_concurrency: $concurrency)"
 
     # Record start time in RFC3339 format
     start_time=$(date +%s)
@@ -46,6 +43,7 @@ execute_sql_and_profile() {
 
     # Execute SQL and get flush_wait_ms in the same session
     result=$($MYSQL_CMD <<EOF
+SET GLOBAL tidb_pipelined_flush_concurrency = $concurrency;
 $sql;
 SELECT @@tidb_last_txn_info;
 EOF
@@ -53,7 +51,7 @@ EOF
 
     # Extract the flush_wait_ms value
     flush_wait_ms=$(echo "$result" | grep -o '"flush_wait_ms":[0-9]*' | awk -F':' '{print $2}')
-    
+
     # Convert milliseconds to seconds
     flush_wait_seconds=$(awk "BEGIN {printf \"%.3f\", $flush_wait_ms / 1000}")
 
@@ -61,15 +59,12 @@ EOF
     end_time=$(date +%s)
     end_time_iso=$(date -u +"%Y-%m-%dT%H:%M:%SZ" -d @"$end_time")
 
-    # Wait for profiling to complete (30 seconds by default)
-    # wait $PROFILE_PID
-
     execution_time=$((end_time - start_time))
     echo "Execution time: $execution_time seconds"
     echo "Flush wait time: $flush_wait_seconds seconds"
 
     # Collect Prometheus metrics
-    echo "Collecting Prometheus metrics for ${operation_name}..."
+    echo "Collecting Prometheus metrics for ${operation_name}_concurrency_${concurrency}..."
 
     # Function to query Prometheus
     query_prometheus() {
@@ -85,83 +80,98 @@ EOF
             --data-urlencode "step=$step"
     }
 
-    # Fetch TiDB CPU average
+    # Fetch metrics
     tidb_cpu_response=$(query_prometheus "$TIDB_CPU_QUERY" "$start_time_iso" "$end_time_iso")
     tidb_cpu_avg=$(echo "$tidb_cpu_response" | jq -r '.data.result[0].values | map(.[1]|tonumber) | add / length')
 
-    # Fetch TiKV CPU average
     tikv_cpu_response=$(query_prometheus "$AVG_TIKV_CPU_QUERY" "$start_time_iso" "$end_time_iso")
     tikv_cpu_avg=$(echo "$tikv_cpu_response" | jq -r '.data.result[0].values | map(.[1]|tonumber) | add / length')
     tikv_max_cpu_response=$(query_prometheus "$MAX_TIKV_CPU_QUERY" "$start_time_iso" "$end_time_iso")
     tikv_max_cpu_avg=$(echo "$tikv_max_cpu_response" | jq -r '.data.result[0].values | map(.[1]|tonumber) | add / length')
 
-    # Fetch TiDB Memory max
     tidb_memory_response=$(query_prometheus "$TIDB_MEMORY_QUERY" "$start_time_iso" "$end_time_iso")
     tidb_memory_max=$(echo "$tidb_memory_response" | jq -r '.data.result[0].values | map(.[1]|tonumber) | max')
 
     # Save metrics to a file
     {
+        echo "Concurrency: ${concurrency}"
         echo "Execution Time: ${execution_time} seconds"
         echo "Flush Wait Time: ${flush_wait_seconds} seconds"
         echo "TiDB CPU Avg: ${tidb_cpu_avg}%"
         echo "TiKV CPU Avg: ${tikv_cpu_avg}%"
         echo "TiKV CPU Max: ${tikv_max_cpu_avg}%"
         echo "TiDB Memory Max: ${tidb_memory_max} GB"
+        echo "-------------------------"
     } >> "${operation_name}_metrics.txt"
 
     echo "Metrics saved to ${operation_name}_metrics.txt"
     echo "-------------------------"
 }
 
+# Function to run benchmark with specific concurrency
+run_benchmark() {
+    local concurrency=$1
+    
+    echo "Running benchmark with flush_concurrency = $concurrency"
+    
+    # Initialization
+    echo "Initializing..."
+    $MYSQL_CMD -e "drop table if exists usertable_2"
+    $MYSQL_CMD -e "set global tidb_shard_allocate_step=32;"
+    $MYSQL_CMD -e "set global tidb_scatter_region = ON" # for v7.5
+    $MYSQL_CMD -e "set global tidb_scatter_region = 'table'" # for v8.4
+    $MYSQL_CMD -e "set global tidb_pipelined_flush_concurrency = $concurrency;"
+    $MYSQL_CMD -e "set @@global.tidb_mem_quota_query=64<<30" # 64 GiB
+    $MYSQL_CMD -e 'CREATE TABLE `usertable_2` (
+      `YCSB_KEY` varchar(64) NOT NULL,
+      `FIELD0` varchar(100) DEFAULT NULL,
+      `FIELD1` varchar(100) DEFAULT NULL,
+      `FIELD2` varchar(100) DEFAULT NULL,
+      `FIELD3` varchar(100) DEFAULT NULL,
+      `FIELD4` varchar(100) DEFAULT NULL,
+      `FIELD5` varchar(100) DEFAULT NULL,
+      `FIELD6` varchar(100) DEFAULT NULL,
+      `FIELD7` varchar(100) DEFAULT NULL,
+      `FIELD8` varchar(100) DEFAULT NULL,
+      `FIELD9` varchar(100) DEFAULT NULL,
+      PRIMARY KEY (`YCSB_KEY`) /*T![clustered_index] NONCLUSTERED */
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin SHARD_ROW_ID_BITS=8 PRE_SPLIT_REGIONS=8'
+    $MYSQL_CMD -e "SPLIT TABLE usertable_2 INDEX \`PRIMARY\` BETWEEN (\"user10\") AND (\"user99\") REGIONS 89;"
+    sleep 10
+    echo "Initialization complete."
+    echo "-------------------------"
 
-# Initialization
-echo "Start the benchmark. Initializing..."
-$MYSQL_CMD -e "drop table if exists usertable_2"
-# $MYSQL_CMD -e "set global tidb_committer_concurrency=512;"
-$MYSQL_CMD -e "set global tidb_shard_allocate_step=32;"
-$MYSQL_CMD -e "set global tidb_scatter_region = ON" # for v7.5
-$MYSQL_CMD -e "set global tidb_scatter_region = 'table'" # for v8.4
-# $MYSQL_CMD -e "create table usertable_2 like usertable"
-$MYSQL_CMD -e 'CREATE TABLE `usertable_2` (
-  `YCSB_KEY` varchar(64) NOT NULL,
-  `FIELD0` varchar(100) DEFAULT NULL,
-  `FIELD1` varchar(100) DEFAULT NULL,
-  `FIELD2` varchar(100) DEFAULT NULL,
-  `FIELD3` varchar(100) DEFAULT NULL,
-  `FIELD4` varchar(100) DEFAULT NULL,
-  `FIELD5` varchar(100) DEFAULT NULL,
-  `FIELD6` varchar(100) DEFAULT NULL,
-  `FIELD7` varchar(100) DEFAULT NULL,
-  `FIELD8` varchar(100) DEFAULT NULL,
-  `FIELD9` varchar(100) DEFAULT NULL,
-  PRIMARY KEY (`YCSB_KEY`) /*T![clustered_index] NONCLUSTERED */
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin SHARD_ROW_ID_BITS=8 PRE_SPLIT_REGIONS=8'
-# $MYSQL_CMD -e "ALTER TABLE usertable_2 SHARD_ROW_ID_BITS = 6;"
-# $MYSQL_CMD -e "SPLIT TABLE usertable_2 BETWEEN (0) AND ($ROW_LIMIT) REGIONS 64;"
-$MYSQL_CMD -e "SPLIT TABLE usertable_2 INDEX \`PRIMARY\` BETWEEN (\"user10\") AND (\"user99\") REGIONS 89;"
-$MYSQL_CMD -e "set @@global.tidb_mem_quota_query=64<<30" # 64 GiB
-sleep 10
-echo "Initialization complete."
-echo "-------------------------"
+    echo "Sleeping for 10 seconds"
+    sleep 10
 
-echo "Sleeping for 10 seconds"
-sleep 10
+    # DML 1
+    execute_sql_and_profile "insert /*+ SET_VAR(tidb_dml_type=bulk) */ into usertable_2 select * from usertable where _tidb_rowid < $ROW_LIMIT;" "dml1_insert" "$concurrency"
 
-# DML 1
-execute_sql_and_profile "insert /*+ SET_VAR(tidb_dml_type=bulk) */ into usertable_2 select * from usertable where _tidb_rowid < $ROW_LIMIT;" "dml1_insert"
+    # Sleep for 5 minutes
+    echo "Sleeping for 5 minutes..."
+    sleep 300
 
-# Sleep for 5 minutes
-echo "Sleeping for 5 minutes..."
-sleep 300
+    # DML 2
+    execute_sql_and_profile "update /*+ SET_VAR(tidb_dml_type=bulk) */ usertable_2 set field0 = LEFT(CONCAT(' ', FIELD0), 100)" "dml2_update" "$concurrency"
 
-# DML 2
-execute_sql_and_profile "update /*+ SET_VAR(tidb_dml_type=bulk) */ usertable_2 set field0 = LEFT(CONCAT(' ', FIELD0), 100)" "dml2_update"
+    # Sleep for 5 minutes
+    echo "Sleeping for 5 minutes..."
+    sleep 300
 
-# Sleep for 5 minutes
-echo "Sleeping for 5 minutes..."
-sleep 300
+    # DML 3
+    execute_sql_and_profile "delete /*+ SET_VAR(tidb_dml_type=bulk) */ from usertable_2" "dml3_delete" "$concurrency"
+}
 
-# DML 3
-execute_sql_and_profile "delete /*+ SET_VAR(tidb_dml_type=bulk) */ from usertable_2" "dml3_delete"
+# Define concurrency values to test
+CONCURRENCY_VALUES=(2 4 8 16 32 128 512)
 
-echo "All operations completed."
+# Main loop to test different concurrency values
+for concurrency in "${CONCURRENCY_VALUES[@]}"; do
+    echo "Testing with flush_concurrency = $concurrency"
+    run_benchmark "$concurrency"
+    echo "Completed testing for flush_concurrency = $concurrency"
+    echo "Sleeping for 5 minutes before next test..."
+    sleep 300
+done
+
+echo "All tests completed."
