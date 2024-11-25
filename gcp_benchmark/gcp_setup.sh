@@ -76,11 +76,11 @@ tiup cluster deploy "$NAME" "$VERSION" cluster.yaml -y
 tiup cluster start "$NAME"
 
 # Load data
-export TARGET_DB="ycsb_1e8_non_clustered"
-tiup br:"$VERSION" restore db \
-    --checksum=false \
-    --pd bench-pdml-pd:2379 \
-    --db "$TARGET_DB" \
-    --storage "gs://oltp-bench-dataset-us-east5-nearline/v8.1.0/$TARGET_DB"
+#export TARGET_DB="ycsb_1e8_non_clustered"
+#tiup br:"$VERSION" restore db \
+#    --checksum=false \
+#    --pd bench-pdml-pd:2379 \
+#    --db "$TARGET_DB" \
+#    --storage "gs://oltp-bench-dataset-us-east5-nearline/v8.1.0/$TARGET_DB"
 
 echo "Cluster deployment and data loading completed successfully."

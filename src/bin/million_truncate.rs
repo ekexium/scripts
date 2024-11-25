@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
     let pool = setup_database_connection().await?;
     let _ = pool.execute("set @@global.tidb_gc_run_interval=1m").await;
     let _ = pool.execute("set @@global.tidb_gc_life_time=1m").await;
-    let _ = pool.execute("set @@global.tidb_gc_concurrency=6").await;
+    let _ = pool.execute("set @@global.tidb_gc_concurrency=1").await;
 
     create_table(&pool).await?;
 
