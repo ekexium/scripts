@@ -353,10 +353,8 @@ async fn run_single_benchmark(
         },
         name
     );
-    if name != "insert" {
-        prepare_data(&opts).await?;
-    }
-    INSERT_COUNTER.store(0, Ordering::Relaxed);
+    prepare_data(&opts).await?;
+    INSERT_COUNTER.store(opts.rows as i64, Ordering::Relaxed);
     NEXT_DELETE_ID.store(0, Ordering::Relaxed);
     NEXT_DELETE_K1.store(0, Ordering::Relaxed);
 
