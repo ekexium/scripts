@@ -135,13 +135,14 @@ async fn prepare_data(opts: &Opt) -> Result<()> {
             k1 INT,
             k2 VARCHAR(64),
             v1 TEXT,
-            created_at TIMESTAMP
+            created_at TIMESTAMP,
+            key idx_k1(k1)
         )",
     )
     .execute(&pool)
     .await?;
 
-    let batch_size = 1000;
+    let batch_size = 10000;
     let num_workers = opts.concurrency;
     let rows = opts.rows;
     let rows_per_worker = (opts.rows + num_workers - 1) / num_workers;
@@ -177,9 +178,10 @@ async fn prepare_data(opts: &Opt) -> Result<()> {
 
                 for j in 0..chunk_size {
                     let id = i + j;
+                    let scattered_k1 = scatter_id(id as i64, rows);
                     query = query
                         .bind(id as i64)
-                        .bind(id as i64 % 1000)
+                        .bind(scattered_k1)
                         .bind(format!("key-{}", id))
                         .bind("initial-value")
                         .bind(&now);
@@ -201,26 +203,83 @@ async fn prepare_data(opts: &Opt) -> Result<()> {
     for handle in handles {
         handle.await??;
     }
-
-    println!("\nCreating index on k1...");
-    sqlx::query("CREATE INDEX idx_k1 ON benchmark_tbl(k1)")
-        .execute(&pool)
-        .await?;
-
+    println!();
     Ok(())
 }
 
 static INSERT_COUNTER: AtomicI64 = AtomicI64::new(0);
+static NEXT_DELETE_ID: AtomicI64 = AtomicI64::new(0);
 
-async fn run_insert_workload(
-    conn: &mut MySqlConnection,
-    _rng: &mut SmallRng,
-) -> Result<()> {
-    let id = INSERT_COUNTER.fetch_add(1, Ordering::SeqCst);
+// an 1-to-1 mapping function from 1~N to 1~N to scatter the sequential ID
+fn scatter_id(sequential_id: i64, total_rows: u64) -> i64 {
+    const MULTIPLIER: i64 = 16777619;
+
+    let scattered = (sequential_id * MULTIPLIER) % (total_rows as i64);
+
+    if scattered < 0 {
+        scattered + total_rows as i64
+    } else {
+        scattered
+    }
+}
+
+static NEXT_DELETE_K1: AtomicI64 = AtomicI64::new(0);
+
+async fn run_point_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
+    let k1 = NEXT_DELETE_K1.fetch_add(1, Ordering::Relaxed);
+    if k1 >= rows as i64 {
+        return Ok(());
+    }
+
+    let result = query("DELETE FROM benchmark_tbl WHERE k1 = ?")
+        .bind(k1)
+        .execute(conn)
+        .await?;
+
+    if result.rows_affected() > 0 {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(format!("No rows deleted for k1={}", k1)))
+    }
+}
+
+async fn run_range_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
+    let batch_size = 3;
+    let k1_start = NEXT_DELETE_K1.fetch_add(batch_size, Ordering::Relaxed);
+    if k1_start >= rows as i64 {
+        return Ok(());
+    }
+
+    let result = query("DELETE FROM benchmark_tbl WHERE k1 BETWEEN ? AND ?")
+        .bind(k1_start)
+        .bind(k1_start + batch_size - 1)
+        .execute(conn)
+        .await?;
+
+    let affected = result.rows_affected() as i64;
+    if affected > 0 {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(format!(
+            "No rows deleted for k1 range {} to {}",
+            k1_start,
+            k1_start + batch_size - 1
+        )))
+    }
+}
+
+async fn run_insert_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
+    let sequential_id = INSERT_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let scattered_id = scatter_id(sequential_id, rows);
+
+    if sequential_id >= rows as i64 {
+        return Ok(());
+    }
+
     query("INSERT INTO benchmark_tbl (id, k1, k2, v1, created_at) VALUES (?, ?, ?, ?, NOW())")
-        .bind(id)
-        .bind(id % 1000)
-        .bind(format!("key-{}", id))
+        .bind(scattered_id)
+        .bind(scattered_id % 1000)
+        .bind(format!("key-{}", scattered_id))
         .bind("new-value")
         .execute(conn)
         .await?;
@@ -251,7 +310,7 @@ async fn run_range_update_workload(
     rng: &mut SmallRng,
     range: &ThreadRange,
 ) -> Result<()> {
-    let start = rng.gen_range(range.start..(range.end - 10));
+    let start = rng.gen_range(range.start..(range.end - 3));
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
@@ -264,52 +323,6 @@ async fn run_range_update_workload(
         .execute(conn)
         .await?;
     Ok(())
-}
-
-static NEXT_DELETE_ID: AtomicI64 = AtomicI64::new(0);
-
-async fn run_point_delete_workload(
-    conn: &mut MySqlConnection,
-    rows: u64,
-) -> Result<()> {
-    let id = NEXT_DELETE_ID.fetch_add(1, Ordering::Relaxed);
-    if id >= rows as i64 {
-        return Ok(());
-    }
-    let result = query("DELETE FROM benchmark_tbl WHERE id = ?")
-        .bind(id)
-        .execute(conn)
-        .await?;
-
-    if result.rows_affected() > 0 {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!(format!("No rows deleted {}", id)))
-    }
-}
-
-async fn run_range_delete_workload(
-    conn: &mut MySqlConnection,
-    rows: u64,
-) -> Result<()> {
-    let batch_size = 10;
-    let id = NEXT_DELETE_ID.fetch_add(batch_size, Ordering::Relaxed);
-    if id >= rows as i64 {
-        return Ok(());
-    }
-
-    let result = query("DELETE FROM benchmark_tbl WHERE id BETWEEN ? AND ?")
-        .bind(id)
-        .bind(id + batch_size - 1)
-        .execute(conn)
-        .await?;
-
-    let affected = result.rows_affected() as i64;
-    if affected > 0 {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!(format!("No rows deleted {}", id)))
-    }
 }
 
 async fn run_single_benchmark(
@@ -334,7 +347,9 @@ async fn run_single_benchmark(
         },
         name
     );
-    prepare_data(&opts).await?;
+    if name != "insert" {
+        prepare_data(&opts).await?;
+    }
     INSERT_COUNTER.store(opts.rows as i64, Ordering::Relaxed);
     NEXT_DELETE_ID.store(0, Ordering::Relaxed);
 
@@ -357,7 +372,6 @@ async fn run_single_benchmark(
     let metrics = Arc::new(Mutex::new(Metrics::new(name)));
 
     let state = Arc::new(WorkloadState::new(opts.rows as i64));
-
     println!("Sleeping for {} seconds...", opts.interval);
     tokio::time::sleep(tokio::time::Duration::from_secs(opts.interval)).await;
     println!("Benchmarking {}...", name);
@@ -386,7 +400,7 @@ async fn run_single_benchmark(
                     Ok(mut conn) => {
                         let conn = conn.acquire().await.unwrap();
                         let result = match operation_idx {
-                            0 => run_insert_workload(conn, &mut rng).await,
+                            0 => run_insert_workload(conn, rows).await,
                             1 => run_point_update_workload(conn, &mut rng, &range).await,
                             2 => run_range_update_workload(conn, &mut rng, &range).await,
                             3 => run_point_delete_workload(conn, rows).await,

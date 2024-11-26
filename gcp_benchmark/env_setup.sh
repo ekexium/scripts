@@ -19,6 +19,7 @@ gvm use go1.23.2
 cd ~
 git clone https://github.com/ekexium/tidb.git
 cd tidb
+git checkout variable-pessimistic-autocommit
 make server
 cd bin
 tar czvf tidb-server.tar.gz tidb-server
