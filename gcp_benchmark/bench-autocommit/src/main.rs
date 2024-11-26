@@ -268,13 +268,18 @@ async fn run_range_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Res
     }
 }
 
+// split by group, then scatter inside the group, to allow infinite insertions
+fn scatter_for_pk(sequential_id: i64, total_rows: u64) -> i64 {
+    let base = total_rows as i64;
+    let region_id = sequential_id / base;
+    let offset = scatter_id(sequential_id % base, total_rows);
+
+    region_id * base + offset
+}
+
 async fn run_insert_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
     let sequential_id = INSERT_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let scattered_id = scatter_id(sequential_id, rows);
-
-    if sequential_id >= rows as i64 {
-        return Ok(());
-    }
+    let scattered_id = scatter_for_pk(sequential_id, rows);
 
     query("INSERT INTO benchmark_tbl (id, k1, k2, v1, created_at) VALUES (?, ?, ?, ?, NOW())")
         .bind(scattered_id)
