@@ -226,20 +226,21 @@ fn scatter_id(sequential_id: i64, total_rows: u64) -> i64 {
 static NEXT_DELETE_K1: AtomicI64 = AtomicI64::new(0);
 
 async fn run_point_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
-    let k1 = NEXT_DELETE_K1.fetch_add(1, Ordering::Relaxed);
-    if k1 >= rows as i64 {
+    let id = NEXT_DELETE_ID.fetch_add(1, Ordering::Relaxed);
+    if id >= rows as i64 {
         return Ok(());
     }
+    let scattered_id = scatter_id(id, rows);
 
     let result = query("DELETE FROM benchmark_tbl WHERE k1 = ?")
-        .bind(k1)
+        .bind(scattered_id)
         .execute(conn)
         .await?;
 
     if result.rows_affected() > 0 {
         Ok(())
     } else {
-        Err(anyhow::anyhow!(format!("No rows deleted for k1={}", k1)))
+        Err(anyhow::anyhow!(format!("No rows deleted for scattered_id={}", scattered_id)))
     }
 }
 
@@ -355,8 +356,9 @@ async fn run_single_benchmark(
     if name != "insert" {
         prepare_data(&opts).await?;
     }
-    INSERT_COUNTER.store(opts.rows as i64, Ordering::Relaxed);
+    INSERT_COUNTER.store(0, Ordering::Relaxed);
     NEXT_DELETE_ID.store(0, Ordering::Relaxed);
+    NEXT_DELETE_K1.store(0, Ordering::Relaxed);
 
     let url = format!("mysql://root@{}:4000/test", opts.host);
     let pool = MySqlPoolOptions::new()
