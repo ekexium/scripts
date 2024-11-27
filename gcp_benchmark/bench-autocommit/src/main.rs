@@ -1,20 +1,20 @@
 use anyhow::Result;
+use bench_autocommit::*;
 use chrono::Local;
 use rand::rngs::SmallRng;
-use rand::Rng;
 use rand::SeedableRng;
 use sqlx::mysql::MySqlPoolOptions;
-use sqlx::query;
-use sqlx::{Acquire, Executor, MySqlConnection};
+use sqlx::{Acquire, Executor, MySql, Pool};
 use statistical::mean;
 use statistical::median;
+use std::cmp::max;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant};
 use structopt::StructOpt;
 use tokio::sync::Mutex;
 
@@ -50,14 +50,12 @@ fn parse_duration(s: &str) -> Result<Duration, String> {
         Err("Duration must end with ms, s, or m".to_string())
     }
 }
-
 #[derive(Debug)]
 struct Metrics {
     operation: String,
     total_ops: u64,
     error_count: u64,
-    duration_ms: u64,
-    latencies: VecDeque<f64>,
+    latencies: VecDeque<(Duration, f64)>, // (start time, latency in ms)
 }
 
 impl Metrics {
@@ -66,13 +64,12 @@ impl Metrics {
             operation: operation.to_string(),
             total_ops: 0,
             error_count: 0,
-            duration_ms: 0,
             latencies: VecDeque::new(),
         }
     }
 
-    fn add_latency(&mut self, latency: f64) {
-        self.latencies.push_back(latency);
+    fn add_latency(&mut self, timestamp: Duration, latency: f64) {
+        self.latencies.push_back((timestamp, latency));
         self.total_ops += 1;
     }
 
@@ -80,18 +77,48 @@ impl Metrics {
         self.error_count += 1;
     }
 
-    fn calculate_stats(&self) -> (f64, f64, f64, f64, f64) {
-        let mut sorted_latencies: Vec<f64> = self.latencies.iter().cloned().collect();
+    fn calculate_stats(
+        &self,
+        window_start: Duration,
+        window_end: Duration,
+    ) -> Option<(LatencyStats, f64)> {
+        let window_latencies: Vec<f64> = self
+            .latencies
+            .iter()
+            .filter(|(timestamp, _)| timestamp >= &window_start && timestamp <= &window_end)
+            .map(|(_, latency)| *latency)
+            .collect();
+
+        if window_latencies.is_empty() {
+            return None;
+        }
+
+        let mut sorted_latencies = window_latencies.clone();
         sorted_latencies.sort_by(|a, b| a.partial_cmp(b).unwrap());
-
-        let avg = mean(&sorted_latencies);
-        let med = median(&sorted_latencies);
-        let p95 = percentile(&sorted_latencies, 95.0);
-        let p99 = percentile(&sorted_latencies, 99.0);
-        let throughput = (self.total_ops as f64 * 1000.0) / self.duration_ms as f64;
-
-        (avg, med, p95, p99, throughput)
+        let throughput =
+            window_latencies.len() as f64 / (window_end.as_secs_f64() - window_start.as_secs_f64());
+        Some((
+            LatencyStats {
+                avg: mean(&sorted_latencies),
+                median: median(&sorted_latencies),
+                p95: percentile(&sorted_latencies, 95.0),
+                p99: percentile(&sorted_latencies, 99.0),
+                min: *sorted_latencies.first().unwrap(),
+                max: *sorted_latencies.last().unwrap(),
+            },
+            throughput,
+        ))
     }
+}
+
+#[derive(Debug)]
+struct LatencyStats {
+    avg: f64,
+    median: f64,
+    p95: f64,
+    p99: f64,
+    min: f64,
+    max: f64,
 }
 
 #[derive(Debug)]
@@ -111,24 +138,6 @@ impl WorkloadState {
     }
 }
 
-struct ThreadRange {
-    start: u64,
-    end: u64,
-}
-
-impl ThreadRange {
-    fn new(thread_id: u64, total_threads: u64, total_rows: u64) -> Self {
-        let range_size = total_rows / total_threads;
-        let start = thread_id * range_size;
-        let end = if thread_id == total_threads - 1 {
-            total_rows
-        } else {
-            start + range_size
-        };
-        ThreadRange { start, end }
-    }
-}
-
 fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     if sorted_data.is_empty() {
         return 0.0;
@@ -137,13 +146,7 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     sorted_data[index]
 }
 
-async fn prepare_data(opts: &Opt) -> Result<()> {
-    let url = format!("mysql://root@{}:4000/test", opts.host);
-    let pool = MySqlPoolOptions::new()
-        .max_connections(opts.concurrency as u32 * 2)
-        .connect(&url)
-        .await?;
-
+async fn prepare_data(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
     sqlx::query("DROP TABLE IF EXISTS benchmark_tbl")
         .execute(&pool)
         .await?;
@@ -226,130 +229,23 @@ async fn prepare_data(opts: &Opt) -> Result<()> {
     Ok(())
 }
 
-static INSERT_COUNTER: AtomicI64 = AtomicI64::new(0);
-static NEXT_DELETE_ID: AtomicI64 = AtomicI64::new(0);
+async fn prepare_cluster(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
+    println!("Preparing cluster...");
 
-// an 1-to-1 mapping function from 1~N to 1~N to scatter the sequential ID
-fn scatter_id(sequential_id: i64, total_rows: u64) -> i64 {
-    const MULTIPLIER: i64 = 16777619;
+    let region_count = 16;
 
-    let scattered = (sequential_id * MULTIPLIER) % (total_rows as i64);
-
-    if scattered < 0 {
-        scattered + total_rows as i64
-    } else {
-        scattered
-    }
-}
-
-static NEXT_DELETE_K1: AtomicI64 = AtomicI64::new(0);
-
-async fn run_point_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
-    let id = NEXT_DELETE_ID.fetch_add(1, Ordering::Relaxed);
-    if id >= rows as i64 {
-        return Ok(());
-    }
-    let scattered_id = scatter_id(id, rows);
-
-    let result = query("DELETE FROM benchmark_tbl WHERE k1 = ?")
-        .bind(scattered_id)
-        .execute(conn)
+    println!("Pre-splitting table into {} regions...", region_count);
+    let split_sql = format!(
+        "SPLIT TABLE benchmark_tbl BETWEEN ({}) AND ({}) REGIONS {}",
+        0, opts.rows, region_count
+    );
+    let mut conn = pool.acquire().await?;
+    conn.execute("set tidb_wait_split_region_finish = true")
         .await?;
+    conn.execute(split_sql.as_str()).await?;
 
-    if result.rows_affected() > 0 {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!(format!(
-            "No rows deleted for scattered_id={}",
-            scattered_id
-        )))
-    }
-}
-
-async fn run_range_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
-    let batch_size = 3;
-    let k1_start = NEXT_DELETE_K1.fetch_add(batch_size, Ordering::Relaxed);
-    if k1_start >= rows as i64 {
-        return Ok(());
-    }
-
-    let result = query("DELETE FROM benchmark_tbl WHERE k1 BETWEEN ? AND ?")
-        .bind(k1_start)
-        .bind(k1_start + batch_size - 1)
-        .execute(conn)
-        .await?;
-
-    let affected = result.rows_affected() as i64;
-    if affected > 0 {
-        Ok(())
-    } else {
-        Err(anyhow::anyhow!(format!(
-            "No rows deleted for k1 range {} to {}",
-            k1_start,
-            k1_start + batch_size - 1
-        )))
-    }
-}
-
-// split by group, then scatter inside the group, to allow infinite insertions
-fn scatter_for_pk(sequential_id: i64, total_rows: u64) -> i64 {
-    let base = total_rows as i64;
-    let region_id = sequential_id / base;
-    let offset = scatter_id(sequential_id % base, total_rows);
-
-    region_id * base + offset
-}
-
-async fn run_insert_workload(conn: &mut MySqlConnection, rows: u64) -> Result<()> {
-    let sequential_id = INSERT_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let scattered_id = scatter_for_pk(sequential_id, rows);
-
-    query("INSERT INTO benchmark_tbl (id, k1, k2, v1, created_at) VALUES (?, ?, ?, ?, NOW())")
-        .bind(scattered_id)
-        .bind(scattered_id % 1000)
-        .bind(format!("key-{}", scattered_id))
-        .bind("new-value")
-        .execute(conn)
-        .await?;
-    Ok(())
-}
-
-async fn run_point_update_workload(
-    conn: &mut MySqlConnection,
-    rng: &mut SmallRng,
-    range: &ThreadRange,
-) -> Result<()> {
-    let id = rng.gen_range(range.start..range.end);
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-        .to_string();
-    query("UPDATE benchmark_tbl SET v1 = ? WHERE id = ?")
-        .bind(timestamp)
-        .bind(id)
-        .execute(conn)
-        .await?;
-    Ok(())
-}
-
-async fn run_range_update_workload(
-    conn: &mut MySqlConnection,
-    rng: &mut SmallRng,
-    range: &ThreadRange,
-) -> Result<()> {
-    let start = rng.gen_range(range.start..(range.end - 3));
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_millis()
-        .to_string();
-    query("UPDATE benchmark_tbl SET v1 = ? WHERE id BETWEEN ? AND ?")
-        .bind(timestamp)
-        .bind(start)
-        .bind(start + 10)
-        .execute(conn)
-        .await?;
+    println!("Running analyze...");
+    conn.execute("ANALYZE TABLE benchmark_tbl").await?;
     Ok(())
 }
 
@@ -375,26 +271,26 @@ async fn run_single_benchmark(
         },
         name
     );
-    prepare_data(&opts).await?;
     INSERT_COUNTER.store(opts.rows as i64, Ordering::Relaxed);
     NEXT_DELETE_ID.store(0, Ordering::Relaxed);
     NEXT_DELETE_K1.store(0, Ordering::Relaxed);
 
     let url = format!("mysql://root@{}:4000/test", opts.host);
     let pool = MySqlPoolOptions::new()
-        .max_connections(opts.concurrency as u32)
+        .max_connections(max(opts.concurrency, 3) as u32)
         .connect(url.as_str())
         .await?;
 
     if pessimistic {
-        let mut conn = pool.acquire().await?;
-        conn.execute("SET GLOBAL tidb_pessimistic_autocommit = 1")
+        pool.execute("SET GLOBAL tidb_pessimistic_autocommit = 1")
             .await?;
     } else {
-        let mut conn = pool.acquire().await?;
-        conn.execute("SET GLOBAL tidb_pessimistic_autocommit = 0")
+        pool.execute("SET GLOBAL tidb_pessimistic_autocommit = 0")
             .await?;
     }
+
+    prepare_data(pool.clone(), &opts).await?;
+    prepare_cluster(pool.clone(), &opts).await?;
 
     let metrics = Arc::new(Mutex::new(Metrics::new(name)));
 
@@ -406,6 +302,9 @@ async fn run_single_benchmark(
     let duration = opts.duration;
     let rows = opts.rows;
     let request_interval = opts.request_interval;
+    let window_start = duration / 4;
+    let window_end = duration * 3 / 4;
+    let case_start_instant = Instant::now();
 
     let mut handles = vec![];
 
@@ -438,7 +337,10 @@ async fn run_single_benchmark(
                         match result {
                             Ok(_) => {
                                 let latency = op_start.elapsed().as_micros() as f64 / 1000.0;
-                                metrics.lock().await.add_latency(latency);
+                                metrics
+                                    .lock()
+                                    .await
+                                    .add_latency(case_start_instant.elapsed(), latency);
                             }
                             Err(e) => {
                                 metrics.lock().await.add_error();
@@ -452,7 +354,9 @@ async fn run_single_benchmark(
                     }
                 }
 
-                tokio::time::sleep(request_interval).await;
+                if request_interval.as_millis() > 0 {
+                    tokio::time::sleep(request_interval).await;
+                }
             }
 
             if state.remaining_rows.load(Ordering::Relaxed) <= 0 {
@@ -469,11 +373,19 @@ async fn run_single_benchmark(
         handle.await?;
     }
 
-    let mut metrics = Arc::try_unwrap(metrics).unwrap().into_inner();
-    metrics.duration_ms = state
-        .actual_duration_ms
-        .load(Ordering::Relaxed)
-        .max(state.start_time.elapsed().as_millis() as u64);
+    let metrics = Arc::try_unwrap(metrics).unwrap().into_inner();
+    if let Some((stats, throughput)) = metrics.calculate_stats(window_start, window_end) {
+        println!(
+            "\nLatency Statistics ({}ms - {}ms window):",
+            window_start.as_millis(),
+            window_end.as_millis()
+        );
+        println!("Average: {:.2}ms", stats.avg);
+        println!("P95:     {:.2}ms", stats.p95);
+        println!("P99:     {:.2}ms", stats.p99);
+        println!("Max:     {:.2}ms", stats.max);
+        println!("Throughput: {:.2} ops/sec", throughput);
+    }
 
     Ok(metrics)
 }
@@ -508,49 +420,39 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-fn output_comparative_results(results: &BenchmarkResults, _opts: &Opt) -> Result<()> {
+fn output_comparative_results(results: &BenchmarkResults, opts: &Opt) -> Result<()> {
     let timestamp = Local::now().format("%Y%m%d_%H%M%S");
     let filename = format!("benchmark_results_{}.csv", timestamp);
     let mut file = File::create(&filename)?;
+
+    // 定义统计窗口
+    let window_start = Duration::from_secs(opts.duration.as_secs() / 4);
+    let window_end = Duration::from_secs(opts.duration.as_secs() * 3 / 4);
 
     writeln!(
         file,
         "operation,metric,optimistic,pessimistic,difference,percent_difference"
     )?;
 
-    println!("\nComparative Benchmark Results\n");
+    println!(
+        "\nComparative Benchmark Results ({}s - {}s window)\n",
+        window_start.as_secs(),
+        window_end.as_secs()
+    );
 
     for i in 0..results.optimistic.len() {
         let opt_metrics = &results.optimistic[i];
         let pess_metrics = &results.pessimistic[i];
 
-        let (opt_avg, opt_med, opt_p95, opt_p99, opt_throughput) = opt_metrics.calculate_stats();
-        let (pess_avg, pess_med, pess_p95, pess_p99, pess_throughput) =
-            pess_metrics.calculate_stats();
+        let (opt_stats, _opt_throughput) = opt_metrics
+            .calculate_stats(window_start, window_end)
+            .expect("No data in window for optimistic test");
+        let (pess_stats, _pess_throughput) = pess_metrics
+            .calculate_stats(window_start, window_end)
+            .expect("No data in window for pessimistic test");
 
         println!("Operation: {}", opt_metrics.operation);
         println!("{:-<65}", "");
-
-        println!("Throughput (operations/sec):");
-        println!(
-            "{:<15} {:>12} {:>12} {:>12} {:>12}",
-            "Metric", "Optimistic", "Pessimistic", "Difference", "% Difference"
-        );
-        println!("{:-<65}", "");
-
-        let throughput_diff = opt_throughput - pess_throughput;
-        let throughput_pct = (throughput_diff / pess_throughput) * 100.0;
-
-        println!(
-            "{:<15} {:>12.2} {:>12.2} {:>12.2} {:>11.2}%\n",
-            "Throughput", opt_throughput, pess_throughput, throughput_diff, throughput_pct
-        );
-
-        writeln!(
-            file,
-            "{},throughput,{:.2},{:.2},{:.2},{:.2}",
-            opt_metrics.operation, opt_throughput, pess_throughput, throughput_diff, throughput_pct
-        )?;
 
         println!("Latencies (ms):");
         println!(
@@ -560,10 +462,12 @@ fn output_comparative_results(results: &BenchmarkResults, _opts: &Opt) -> Result
         println!("{:-<65}", "");
 
         let metrics = [
-            ("Average", opt_avg, pess_avg),
-            ("Median", opt_med, pess_med),
-            ("P95", opt_p95, pess_p95),
-            ("P99", opt_p99, pess_p99),
+            ("Average", opt_stats.avg, pess_stats.avg),
+            ("Median", opt_stats.median, pess_stats.median),
+            ("P95", opt_stats.p95, pess_stats.p95),
+            ("P99", opt_stats.p99, pess_stats.p99),
+            ("Min", opt_stats.min, pess_stats.min),
+            ("Max", opt_stats.max, pess_stats.max),
         ];
 
         for (name, opt_val, pess_val) in metrics.iter() {
