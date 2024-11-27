@@ -382,8 +382,6 @@ async fn run_single_benchmark(
         );
         println!("Average: {:.2}ms", stats.avg);
         println!("P95:     {:.2}ms", stats.p95);
-        println!("P99:     {:.2}ms", stats.p99);
-        println!("Max:     {:.2}ms", stats.max);
         println!("Throughput: {:.2} ops/sec", throughput);
     }
 
@@ -444,17 +442,17 @@ fn output_comparative_results(results: &BenchmarkResults, opts: &Opt) -> Result<
         let opt_metrics = &results.optimistic[i];
         let pess_metrics = &results.pessimistic[i];
 
-        let (opt_stats, _opt_throughput) = opt_metrics
+        let (opt_stats, opt_throughput) = opt_metrics
             .calculate_stats(window_start, window_end)
             .expect("No data in window for optimistic test");
-        let (pess_stats, _pess_throughput) = pess_metrics
+        let (pess_stats, pess_throughput) = pess_metrics
             .calculate_stats(window_start, window_end)
             .expect("No data in window for pessimistic test");
 
         println!("Operation: {}", opt_metrics.operation);
         println!("{:-<65}", "");
 
-        println!("Latencies (ms):");
+        println!("Latencies (ms) and throughtpu (op/s):");
         println!(
             "{:<15} {:>12} {:>12} {:>12} {:>12}",
             "Metric", "Optimistic", "Pessimistic", "Difference", "% Difference"
@@ -462,12 +460,9 @@ fn output_comparative_results(results: &BenchmarkResults, opts: &Opt) -> Result<
         println!("{:-<65}", "");
 
         let metrics = [
-            ("Average", opt_stats.avg, pess_stats.avg),
-            ("Median", opt_stats.median, pess_stats.median),
+            ("Mean", opt_stats.avg, pess_stats.avg),
             ("P95", opt_stats.p95, pess_stats.p95),
-            ("P99", opt_stats.p99, pess_stats.p99),
-            ("Min", opt_stats.min, pess_stats.min),
-            ("Max", opt_stats.max, pess_stats.max),
+            ("Throughput", opt_throughput, pess_throughput),
         ];
 
         for (name, opt_val, pess_val) in metrics.iter() {
@@ -481,7 +476,7 @@ fn output_comparative_results(results: &BenchmarkResults, opts: &Opt) -> Result<
 
             writeln!(
                 file,
-                "{},{}_latency,{:.2},{:.2},{:.2},{:.2}",
+                "{},{},{:.2},{:.2},{:.2},{:.2}",
                 opt_metrics.operation,
                 name.to_lowercase(),
                 opt_val,
