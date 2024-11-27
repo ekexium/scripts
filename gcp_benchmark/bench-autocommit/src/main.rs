@@ -11,9 +11,10 @@ use statistical::median;
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
+use std::str::FromStr;
 use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use structopt::StructOpt;
 use tokio::sync::Mutex;
 
@@ -24,12 +25,30 @@ struct Opt {
     host: String,
     #[structopt(long, default_value = "10000000")]
     rows: u64,
-    #[structopt(long, default_value = "8")]
+    #[structopt(long, default_value = "1")]
     concurrency: u64,
-    #[structopt(long, default_value = "60")]
-    duration: u64,
-    #[structopt(long, default_value = "60")]
-    interval: u64,
+    #[structopt(long, default_value = "30s", parse(try_from_str = parse_duration))]
+    duration: Duration,
+    #[structopt(long, default_value = "15s", parse(try_from_str = parse_duration))]
+    operation_interval: Duration,
+    #[structopt(long, default_value = "0ms", parse(try_from_str = parse_duration))]
+    request_interval: Duration,
+}
+
+fn parse_duration(s: &str) -> Result<Duration, String> {
+    let s = s.trim().to_lowercase();
+    if s.ends_with("ms") {
+        let ms = u64::from_str(&s[..s.len() - 2]).map_err(|e| e.to_string())?;
+        Ok(Duration::from_millis(ms))
+    } else if s.ends_with('s') {
+        let secs = u64::from_str(&s[..s.len() - 1]).map_err(|e| e.to_string())?;
+        Ok(Duration::from_secs(secs))
+    } else if s.ends_with('m') {
+        let mins = u64::from_str(&s[..s.len() - 1]).map_err(|e| e.to_string())?;
+        Ok(Duration::from_secs(mins * 60))
+    } else {
+        Err("Duration must end with ms, s, or m".to_string())
+    }
 }
 
 #[derive(Debug)]
@@ -240,7 +259,10 @@ async fn run_point_delete_workload(conn: &mut MySqlConnection, rows: u64) -> Res
     if result.rows_affected() > 0 {
         Ok(())
     } else {
-        Err(anyhow::anyhow!(format!("No rows deleted for scattered_id={}", scattered_id)))
+        Err(anyhow::anyhow!(format!(
+            "No rows deleted for scattered_id={}",
+            scattered_id
+        )))
     }
 }
 
@@ -377,12 +399,13 @@ async fn run_single_benchmark(
     let metrics = Arc::new(Mutex::new(Metrics::new(name)));
 
     let state = Arc::new(WorkloadState::new(opts.rows as i64));
-    println!("Sleeping for {} seconds...", opts.interval);
-    tokio::time::sleep(tokio::time::Duration::from_secs(opts.interval)).await;
+    println!("Sleeping for {:?}...", opts.operation_interval);
+    tokio::time::sleep(opts.operation_interval).await;
     println!("Benchmarking {}...", name);
 
     let duration = opts.duration;
     let rows = opts.rows;
+    let request_interval = opts.request_interval;
 
     let mut handles = vec![];
 
@@ -396,7 +419,7 @@ async fn run_single_benchmark(
             let mut rng = SmallRng::from_entropy();
             let start_time = Instant::now();
 
-            while start_time.elapsed().as_millis() < (duration * 1000).into()
+            while (start_time.elapsed() < duration)
                 && (operation_idx < 3 || state.remaining_rows.load(Ordering::Relaxed) > 0)
             {
                 let op_start = Instant::now();
@@ -428,6 +451,8 @@ async fn run_single_benchmark(
                         eprintln!("Error: {:?}", e);
                     }
                 }
+
+                tokio::time::sleep(request_interval).await;
             }
 
             if state.remaining_rows.load(Ordering::Relaxed) <= 0 {
