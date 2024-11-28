@@ -146,7 +146,7 @@ fn percentile(sorted_data: &[f64], p: f64) -> f64 {
     sorted_data[index]
 }
 
-async fn prepare_data(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
+async fn prepare_data(pool: Pool<MySql>, populate_data: bool, opts: &Opt) -> Result<()> {
     sqlx::query("DROP TABLE IF EXISTS benchmark_tbl")
         .execute(&pool)
         .await?;
@@ -163,6 +163,10 @@ async fn prepare_data(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
     )
     .execute(&pool)
     .await?;
+
+    if !populate_data {
+        return Ok(());
+    }
 
     let batch_size = 10000;
     let num_workers = opts.concurrency;
@@ -229,15 +233,15 @@ async fn prepare_data(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
     Ok(())
 }
 
-async fn prepare_cluster(pool: Pool<MySql>, opts: &Opt) -> Result<()> {
+async fn prepare_cluster(pool: Pool<MySql>, max_row_id: u64) -> Result<()> {
     println!("Preparing cluster...");
 
-    let region_count = 16;
+    let region_count = 64;
 
     println!("Pre-splitting table into {} regions...", region_count);
     let split_sql = format!(
         "SPLIT TABLE benchmark_tbl BETWEEN ({}) AND ({}) REGIONS {}",
-        0, opts.rows, region_count
+        0, max_row_id, region_count
     );
     let mut conn = pool.acquire().await?;
     conn.execute("set tidb_wait_split_region_finish = true")
@@ -271,7 +275,7 @@ async fn run_single_benchmark(
         },
         name
     );
-    INSERT_COUNTER.store(opts.rows as i64, Ordering::Relaxed);
+    INSERT_COUNTER.store(0, Ordering::Relaxed);
     NEXT_DELETE_ID.store(0, Ordering::Relaxed);
     NEXT_DELETE_K1.store(0, Ordering::Relaxed);
 
@@ -289,8 +293,14 @@ async fn run_single_benchmark(
             .await?;
     }
 
-    prepare_data(pool.clone(), &opts).await?;
-    prepare_cluster(pool.clone(), &opts).await?;
+    if name == "insert" {
+        // special preparation for inserts
+        prepare_data(pool.clone(), false, &opts).await?;
+        prepare_cluster(pool.clone(), MAX_ROW_ID_FOR_INSERT).await?;
+    } else {
+        prepare_data(pool.clone(), true, &opts).await?;
+        prepare_cluster(pool.clone(), opts.rows).await?;
+    }
 
     let metrics = Arc::new(Mutex::new(Metrics::new(name)));
 
@@ -327,7 +337,7 @@ async fn run_single_benchmark(
                     Ok(mut conn) => {
                         let conn = conn.acquire().await.unwrap();
                         let result = match operation_idx {
-                            0 => run_insert_workload(conn, rows).await,
+                            0 => run_insert_workload(conn, MAX_ROW_ID_FOR_INSERT).await,
                             1 => run_point_update_workload(conn, &mut rng, &range).await,
                             2 => run_range_update_workload(conn, &mut rng, &range).await,
                             3 => run_point_delete_workload(conn, rows).await,

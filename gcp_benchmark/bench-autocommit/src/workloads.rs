@@ -7,6 +7,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub static INSERT_COUNTER: AtomicI64 = AtomicI64::new(0);
 pub static NEXT_DELETE_ID: AtomicI64 = AtomicI64::new(0);
 pub static NEXT_DELETE_K1: AtomicI64 = AtomicI64::new(0);
+pub const MAX_ROW_ID_FOR_INSERT: u64 = 0x7fffffff;
 
 pub struct ThreadRange {
     start: u64,
@@ -101,9 +102,12 @@ pub fn scatter_for_pk(sequential_id: i64, total_rows: u64) -> i64 {
     region_id * base + offset
 }
 
-pub async fn run_insert_workload(conn: &mut MySqlConnection, rows: u64) -> anyhow::Result<()> {
+pub async fn run_insert_workload(
+    conn: &mut MySqlConnection,
+    max_row_id: u64,
+) -> anyhow::Result<()> {
     let sequential_id = INSERT_COUNTER.fetch_add(1, Ordering::SeqCst);
-    let scattered_id = scatter_for_pk(sequential_id, rows);
+    let scattered_id = scatter_for_pk(sequential_id, max_row_id);
 
     query("INSERT INTO benchmark_tbl (id, k1, k2, v1, created_at) VALUES (?, ?, ?, ?, NOW())")
         .bind(scattered_id)
