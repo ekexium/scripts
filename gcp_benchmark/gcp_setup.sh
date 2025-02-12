@@ -8,14 +8,14 @@ usage() {
     echo "Usage: $0 [-n NAME] [-v VERSION]"
     echo ""
     echo "Options:"
-    echo "  -n, --name      Name of the cluster (default: bench-pdml)"
+    echo "  -n, --name      Name of the cluster (default: pdml)"
     echo "  -v, --version   Version to deploy (required)"
     echo "  -h, --help      Display this help message"
     exit 1
 }
 
 # Default values
-NAME="pdml"
+NAME="eke-bench"
 VERSION=""
 
 # Parse command-line arguments
@@ -54,16 +54,23 @@ echo "Name: $NAME"
 echo "Version: $VERSION"
 echo ""
 
+# 根据传入的 NAME 拼接机器名
+MONITORING_SERVER="${NAME}-load"
+GRAFANA_SERVER="${NAME}-load"
+PD_SERVER="${NAME}-pd"
+TIKV_SERVERS="${NAME}-tikv-0,${NAME}-tikv-1,${NAME}-tikv-2"
+TIDB_SERVER="${NAME}-tidb-0"
+
 # Deploy cluster
 tiup cluster template \
     --local \
     --deploy-dir /data/"$NAME"/deploy \
     --data-dir /data/"$NAME"/data \
-    --monitoring-servers bench-pdml-load \
-    --grafana-servers bench-pdml-load \
-    --pd-servers bench-pdml-pd \
-    --tikv-servers bench-pdml-tikv-0,bench-pdml-tikv-1,bench-pdml-tikv-2 \
-    --tidb-servers bench-pdml-tidb-0 > cluster.yaml
+    --monitoring-servers "$MONITORING_SERVER" \
+    --grafana-servers "$GRAFANA_SERVER" \
+    --pd-servers "$PD_SERVER" \
+    --tikv-servers "$TIKV_SERVERS" \
+    --tidb-servers "$TIDB_SERVER" > cluster.yaml
 
 tiup cluster check --apply cluster.yaml
 tiup cluster deploy "$NAME" "$VERSION" cluster.yaml -y
@@ -76,11 +83,11 @@ tiup cluster deploy "$NAME" "$VERSION" cluster.yaml -y
 tiup cluster start "$NAME"
 
 # Load data
-#export TARGET_DB="ycsb_1e8_non_clustered"
-#tiup br:"$VERSION" restore db \
-#    --checksum=false \
-#    --pd bench-pdml-pd:2379 \
-#    --db "$TARGET_DB" \
-#    --storage "gs://oltp-bench-dataset-us-east5-nearline/v8.1.0/$TARGET_DB"
+# export TARGET_DB="ycsb_1e8_non_clustered"
+# tiup br:"$VERSION" restore db \
+#     --checksum=false \
+#     --pd "${PD_SERVER}:2379" \
+#     --db "$TARGET_DB" \
+#     --storage "gs://oltp-bench-dataset-us-east5-nearline/v8.1.0/$TARGET_DB"
 
 echo "Cluster deployment and data loading completed successfully."
