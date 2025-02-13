@@ -218,4 +218,13 @@ for log in "${RESULTS_DIR}"/*_sysbench.log; do
 done
 echo "=============================================="
 
+echo ">>> Running sysbench 'cleanup' phase to drop existing tables..."
+${SYSBENCH_PATH} ${SYSBENCH_TEST_SCRIPT} \
+    --mysql-db=${DATABASE} \
+    --mysql-host=${TIDB_HOST} \
+    --mysql-port=${TIDB_PORT} \
+    --mysql-user=${TIDB_USER} \
+    --mysql-password=${TIDB_PASSWORD} \
+    cleanup
+
 collect_diagnostics
