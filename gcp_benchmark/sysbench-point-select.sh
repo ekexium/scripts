@@ -35,11 +35,11 @@ TIDB_PPROF_PORT=${TIDB_PPROF_PORT:-10080}
 SYSBENCH_PATH=${SYSBENCH_PATH:-"sysbench"}
 SYSBENCH_TEST_SCRIPT=${SYSBENCH_TEST_SCRIPT:-"oltp_point_select"}
 DATABASE=${DATABASE:-"sbtest"}
-THREADS=${THREADS:-16}
-RUNTIME=${RUNTIME:-60}         # Duration of the run phase in seconds
-RATE=${RATE:-1000}             # Fixed QPS rate
+THREADS=${THREADS:-64}
+RUNTIME=${RUNTIME:-180}         # Duration of the run phase in seconds
+RATE=${RATE:-65000}             # Fixed QPS rate
 # Duration to collect CPU profile. It is suggested to be equal or lower than RUNTIME (in seconds).
-PROFILE_DURATION=${PROFILE_DURATION:-60}
+PROFILE_DURATION=${RUNTIME}
 
 # Table settings for sysbench (used during prepare and run phases)
 TABLES=${TABLES:-1}          # Number of tables used in the test
