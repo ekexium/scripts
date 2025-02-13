@@ -170,8 +170,8 @@ METRICS_FROM=$(date -uIseconds)
 # Ensure the target database and tables exist by creating the database and running sysbench prepare.
 prepare_database
 
-echo ">>> Preparation complete. Waiting 5 seconds to ensure all settings take effect..."
-sleep 5
+echo ">>> Preparation complete. Waiting 30 seconds to ensure all settings take effect..."
+sleep 30
 
 # Restore all features to "on" state as the baseline, then run the baseline benchmark.
 restore_all_features
@@ -185,8 +185,8 @@ for feature in "${FEATURES[@]}"; do
   # First, restore all features then disable the current feature.
   restore_all_features
   set_feature_state "${feature}" "off"
-  echo ">>> Waiting 5 seconds to ensure settings are applied..."
-  sleep 5
+  echo ">>> Waiting 30 seconds to ensure settings are applied..."
+  sleep 30
   
   run_benchmark "feature_${feature}_off" "${RESULTS_DIR}"
 done
@@ -197,8 +197,8 @@ echo "Testing: Disabling ALL features"
 for feature in "${FEATURES[@]}"; do
   set_feature_state "${feature}" "off"
 done
-echo ">>> Waiting 5 seconds to ensure settings are applied..."
-sleep 5
+echo ">>> Waiting 30 seconds to ensure settings are applied..."
+sleep 30
 run_benchmark "all_features_off" "${RESULTS_DIR}"
 
 echo "=============================================="
