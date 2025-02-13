@@ -82,6 +82,7 @@ function set_feature_state() {
 # Restore all features to the "on" state
 function restore_all_features() {
   echo ">>> Restoring all features to ON state..."
+  local feature
   for feature in "${FEATURES[@]}"; do
     set_feature_state "$feature" "on"
   done
