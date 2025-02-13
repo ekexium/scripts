@@ -8,12 +8,14 @@
 #   1. It creates the "sbtest" database if it does not already exist.
 #   2. It runs the sysbench prepare command to create the necessary tables and insert data.
 #
-# Features to test (each will be individually disabled):
+# Features to test (each will be individually toggled):
 #   tidb_use_plan_baselines
 #   tidb_plan_cache_invalidation_on_fresh_stats
 #   tidb_enable_stmt_summary
 #   tidb_enable_collect_execution_info
 #   tidb_enable_resource_control
+#   tidb_txn_assertion_level            (example: "strict" vs "none")
+#   tidb_guarantee_linearizability      (example: "true" vs "false")
 
 set -euo pipefail
 
@@ -42,7 +44,7 @@ RATE=${RATE:-65000}             # Fixed QPS rate
 PROFILE_DURATION=${RUNTIME}
 
 # Table settings for sysbench (used during prepare and run phases)
-TABLES=${TABLES:-1}          # Number of tables used in the test
+TABLES=${TABLES:-1}           # Number of tables used in the test
 TABLE_SIZE=${TABLE_SIZE:-10000000}  # Number of rows per table
 
 # Additional sysbench options to reduce output and only report P99, etc.
@@ -63,6 +65,27 @@ FEATURES=(
   "tidb_guarantee_linearizability"
 )
 
+# Define baseline and test states (you may adjust these values as needed)
+declare -A BASELINE_VALUES=(
+  ["tidb_use_plan_baselines"]="on"
+  ["tidb_plan_cache_invalidation_on_fresh_stats"]="on"
+  ["tidb_enable_stmt_summary"]="on"
+  ["tidb_enable_collect_execution_info"]="on"
+  ["tidb_enable_resource_control"]="on"
+  ["tidb_txn_assertion_level"]="fast"
+  ["tidb_guarantee_linearizability"]="on"
+)
+
+declare -A TEST_VALUES=(
+  ["tidb_use_plan_baselines"]="off"
+  ["tidb_plan_cache_invalidation_on_fresh_stats"]="off"
+  ["tidb_enable_stmt_summary"]="off"
+  ["tidb_enable_collect_execution_info"]="off"
+  ["tidb_enable_resource_control"]="off"
+  ["tidb_txn_assertion_level"]="off"
+  ["tidb_guarantee_linearizability"]="off"
+)
+
 #######################
 # Helper Functions
 #######################
@@ -74,26 +97,25 @@ function exec_mysql() {
   mysql -h "$TIDB_HOST" -P "$TIDB_PORT" -u "$TIDB_USER" -e "$sql"
 }
 
-# Set the state of a given feature variable (state: "on" or "off")
+# Set the state of a given feature variable (state can now be any value as defined)
 function set_feature_state() {
   local feature="$1"
-  local state="$2"  # expected values: "on" or "off"
+  local state="$2"  # expected value (can be "on"/"off" or other values as needed)
   exec_mysql "SET GLOBAL ${feature}=${state};"
 }
 
-# Restore all features to the "on" state
+# Restore all features to their baseline states.
 function restore_all_features() {
-  echo ">>> Restoring all features to ON state..."
+  echo ">>> Restoring all features to baseline states..."
   local feature
   for feature in "${FEATURES[@]}"; do
-    set_feature_state "$feature" "on"
+    set_feature_state "$feature" "${BASELINE_VALUES[$feature]}"
   done
 }
 
-# Prepare the test environment
+# Prepare the test environment:
 # 1. Create the database (if it does not exist)
-# 2. Run the sysbench prepare phase to create tables and insert test data,
-#    using specified TABLES and TABLE_SIZE.
+# 2. Run the sysbench prepare phase to create tables and insert test data.
 function prepare_database() {
   echo ">>> Checking if database '${DATABASE}' exists and creating it if necessary..."
   exec_mysql "CREATE DATABASE IF NOT EXISTS ${DATABASE};"
@@ -111,7 +133,6 @@ function prepare_database() {
 }
 
 # Run the sysbench benchmark and collect a CPU profile concurrently.
-# This function uses the sysbench "run" command.
 function run_benchmark() {
   local test_name="$1"
   local test_dir="$2"
@@ -119,9 +140,7 @@ function run_benchmark() {
   local sysbench_log="${test_dir}/${test_name}_sysbench.log"
   local cpu_profile_file="${test_dir}/${test_name}_cpuprofile.pprof"
 
-  # Construct the sysbench command using the target database.
-  # Now we also pass --tables and --table-size so that the test script
-  # correctly understands how many tables and rows to operate on.
+  # Construct the sysbench command.
   SYSBENCH_CMD="${SYSBENCH_PATH} ${SYSBENCH_TEST_SCRIPT} \
     --threads=${THREADS} \
     --time=${RUNTIME} \
@@ -144,11 +163,11 @@ function run_benchmark() {
   curl -s -o "${cpu_profile_file}" "http://${TIDB_HOST}:${TIDB_PPROF_PORT}/debug/pprof/profile?seconds=${PROFILE_DURATION}" &
   CPU_PROFILE_PID=$!
 
-  # Run the sysbench benchmark, logging output to a file.
+  # Run the sysbench benchmark, logging output.
   echo ">>> Running sysbench benchmark. Output will be logged to ${sysbench_log}"
   ${SYSBENCH_CMD} | tee "${sysbench_log}"
 
-  # Wait for the CPU profile collection to complete.
+  # Wait for the CPU profile collection to finish.
   wait "${CPU_PROFILE_PID}"
   echo "==== Finished benchmark: [${test_name}] ===="
   echo "   Sysbench log: ${sysbench_log}"
@@ -171,7 +190,6 @@ METRICS_FROM=$(date -uIseconds)
 
 # Preparation Phase:
 prepare_database
-
 echo ">>> Preparation complete. Waiting 30 seconds to ensure all settings take effect..."
 sleep 30
 
@@ -182,32 +200,32 @@ run_benchmark "warmup" "${RESULTS_DIR}"
 echo ">>> Warmup phase complete. Waiting 30 seconds before starting tests..."
 sleep 30
 
-# Baseline Benchmark (all features ON)
+# Baseline Benchmark (all features in baseline state)
 restore_all_features
-echo ">>> Running baseline benchmark with all features ON"
+echo ">>> Running baseline benchmark with all features in baseline state"
 run_benchmark "baseline_all_on" "${RESULTS_DIR}"
 
-# Test each feature individually by turning it off.
+# Test each feature individually by applying its test state.
 for feature in "${FEATURES[@]}"; do
   echo "----------------------------------------------"
-  echo "Testing: Disabling ${feature}"
+  echo "Testing feature: Setting ${feature} from baseline [${BASELINE_VALUES[$feature]}] to test state [${TEST_VALUES[$feature]}]"
   restore_all_features
-  set_feature_state "${feature}" "off"
+  set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
   echo ">>> Waiting 30 seconds to ensure settings are applied..."
   sleep 30
   
-  run_benchmark "feature_${feature}_off" "${RESULTS_DIR}"
+  run_benchmark "feature_${feature}_test" "${RESULTS_DIR}"
 done
 
-# Optionally, run a benchmark with all features turned off.
+# Optionally, run a benchmark with all features set to their test states.
 echo "----------------------------------------------"
-echo "Testing: Disabling ALL features"
+echo "Testing: Setting ALL features to their test states"
 for feature in "${FEATURES[@]}"; do
-  set_feature_state "${feature}" "off"
+  set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
 done
 echo ">>> Waiting 30 seconds to ensure settings are applied..."
 sleep 30
-run_benchmark "all_features_off" "${RESULTS_DIR}"
+run_benchmark "all_features_test" "${RESULTS_DIR}"
 
 echo "=============================================="
 echo "All tests completed. Results are stored in directory: ${RESULTS_DIR}"
