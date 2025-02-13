@@ -190,15 +190,15 @@ METRICS_FROM=$(date -uIseconds)
 
 # Preparation Phase:
 prepare_database
-echo ">>> Preparation complete. Waiting 30 seconds to ensure all settings take effect..."
-sleep 30
+echo ">>> Preparation complete. Waiting 60 seconds to ensure all settings take effect..."
+sleep 60
 
 # --- Warmup Phase ---
 echo "=============================================="
 echo ">>> Running warmup phase (this run is for warming up, results will be discarded)"
 run_benchmark "warmup" "${RESULTS_DIR}"
-echo ">>> Warmup phase complete. Waiting 30 seconds before starting tests..."
-sleep 30
+echo ">>> Warmup phase complete. Waiting 60 seconds before starting tests..."
+sleep 60
 
 # Baseline Benchmark (all features in baseline state)
 restore_all_features
@@ -211,8 +211,8 @@ for feature in "${FEATURES[@]}"; do
   echo "Testing feature: Setting ${feature} from baseline [${BASELINE_VALUES[$feature]}] to test state [${TEST_VALUES[$feature]}]"
   restore_all_features
   set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
-  echo ">>> Waiting 30 seconds to ensure settings are applied..."
-  sleep 30
+  echo ">>> Waiting 60 seconds..."
+  sleep 60
   
   run_benchmark "feature_${feature}_test" "${RESULTS_DIR}"
 done
@@ -223,8 +223,8 @@ echo "Testing: Setting ALL features to their test states"
 for feature in "${FEATURES[@]}"; do
   set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
 done
-echo ">>> Waiting 30 seconds to ensure settings are applied..."
-sleep 30
+echo ">>> Waiting 60 seconds..."
+sleep 60
 run_benchmark "all_features_test" "${RESULTS_DIR}"
 
 echo "=============================================="
