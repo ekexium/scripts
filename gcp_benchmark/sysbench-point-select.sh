@@ -43,7 +43,7 @@ PROFILE_DURATION=${RUNTIME}
 
 # Table settings for sysbench (used during prepare and run phases)
 TABLES=${TABLES:-1}          # Number of tables used in the test
-TABLE_SIZE=${TABLE_SIZE:-1000000}  # Number of rows per table
+TABLE_SIZE=${TABLE_SIZE:-10000000}  # Number of rows per table
 
 # Additional sysbench options to reduce output and only report P99, etc.
 EXTRA_OPTS=${EXTRA_OPTS:="--report-interval=10 --percentile=99 --mysql-ignore-errors=all --forced-shutdown=60 --rand-type=uniform --ignore-queue-full"}
@@ -59,6 +59,8 @@ FEATURES=(
   "tidb_enable_stmt_summary"
   "tidb_enable_collect_execution_info"
   "tidb_enable_resource_control"
+  "tidb_txn_assertion_level"
+  "tidb_guarantee_linearizability"
 )
 
 #######################
@@ -164,16 +166,23 @@ function collect_diagnostics() {
 # Benchmark Workflow
 #######################
 
+# Record the start time for diagnostics collection.
 METRICS_FROM=$(date -uIseconds)
 
 # Preparation Phase:
-# Ensure the target database and tables exist by creating the database and running sysbench prepare.
 prepare_database
 
 echo ">>> Preparation complete. Waiting 30 seconds to ensure all settings take effect..."
 sleep 30
 
-# Restore all features to "on" state as the baseline, then run the baseline benchmark.
+# --- Warmup Phase ---
+echo "=============================================="
+echo ">>> Running warmup phase (this run is for warming up, results will be discarded)"
+run_benchmark "warmup" "${RESULTS_DIR}"
+echo ">>> Warmup phase complete. Waiting 30 seconds before starting tests..."
+sleep 30
+
+# Baseline Benchmark (all features ON)
 restore_all_features
 echo ">>> Running baseline benchmark with all features ON"
 run_benchmark "baseline_all_on" "${RESULTS_DIR}"
@@ -182,7 +191,6 @@ run_benchmark "baseline_all_on" "${RESULTS_DIR}"
 for feature in "${FEATURES[@]}"; do
   echo "----------------------------------------------"
   echo "Testing: Disabling ${feature}"
-  # First, restore all features then disable the current feature.
   restore_all_features
   set_feature_state "${feature}" "off"
   echo ">>> Waiting 30 seconds to ensure settings are applied..."
@@ -203,7 +211,6 @@ run_benchmark "all_features_off" "${RESULTS_DIR}"
 
 echo "=============================================="
 echo "All tests completed. Results are stored in directory: ${RESULTS_DIR}"
-
 METRICS_TO=$(date -uIseconds)
 
 echo "=============================================="
