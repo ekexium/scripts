@@ -15,7 +15,7 @@ usage() {
 }
 
 # Default values
-NAME="eke-bench"
+NAME="test-zq"
 VERSION=""
 
 # Parse command-line arguments
@@ -57,7 +57,7 @@ echo ""
 # 根据传入的 NAME 拼接机器名
 MONITORING_SERVER="${NAME}-load"
 GRAFANA_SERVER="${NAME}-load"
-PD_SERVER="${NAME}-pd"
+PD_SERVER="${NAME}-pd-0"
 TIKV_SERVERS="${NAME}-tikv-0,${NAME}-tikv-1,${NAME}-tikv-2"
 TIDB_SERVER="${NAME}-tidb-0"
 

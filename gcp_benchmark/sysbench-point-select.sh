@@ -24,7 +24,7 @@ set -euo pipefail
 #######################
 
 # TiDB connection and pprof settings (adjust as needed)
-CLUSTER_NAME=${CLUSTER_NAME:-"eke-bench"}
+CLUSTER_NAME=${CLUSTER_NAME:-"test-zq"}
 TIDB_HOST=${TIDB_HOST:-"${CLUSTER_NAME}-tidb-0"}
 TIDB_PORT=${TIDB_PORT:-4000}
 TIDB_USER=${TIDB_USER:-"root"}
