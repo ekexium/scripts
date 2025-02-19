@@ -1,7 +1,7 @@
 #!/bin/bash
 # run_benchmark.sh
 # This script uses the sysbench point select fixed-rate benchmark to evaluate P99 latency.
-# It collects CPU profiles via TiDB's pprof endpoint during each run.
+# It collects CPU and block profiles via TiDB's pprof endpoint during each run.
 # It toggles specific TiDB features using system variables to measure performance impact.
 #
 # In addition, the script performs a preparation phase where:
@@ -14,8 +14,8 @@
 #   tidb_enable_stmt_summary
 #   tidb_enable_collect_execution_info
 #   tidb_enable_resource_control
-#   tidb_txn_assertion_level            (example: "strict" vs "none")
-#   tidb_guarantee_linearizability      (example: "true" vs "false")
+#   tidb_txn_assertion_level            (example: "fast" vs "off")
+#   tidb_guarantee_linearizability      (example: "on" vs "off")
 
 set -euo pipefail
 
@@ -40,7 +40,7 @@ DATABASE=${DATABASE:-"sbtest"}
 THREADS=${THREADS:-64}
 RUNTIME=${RUNTIME:-180}         # Duration of the run phase in seconds
 RATE=${RATE:-65000}             # Fixed QPS rate
-# Duration to collect CPU profile. It is suggested to be equal or lower than RUNTIME (in seconds).
+# Duration to collect profiles. It is suggested to be equal or lower than RUNTIME (in seconds).
 PROFILE_DURATION=${RUNTIME}
 
 # Table settings for sysbench (used during prepare and run phases)
@@ -90,14 +90,14 @@ declare -A TEST_VALUES=(
 # Helper Functions
 #######################
 
-# Execute a SQL statement using the mysql client
+# Execute a SQL statement using the mysql client.
 function exec_mysql() {
   local sql="$1"
   echo ">>> Executing: $sql"
   mysql -h "$TIDB_HOST" -P "$TIDB_PORT" -u "$TIDB_USER" -e "$sql"
 }
 
-# Set the state of a given feature variable (state can now be any value as defined)
+# Set the state of a given feature variable (state can now be any value as defined).
 function set_feature_state() {
   local feature="$1"
   local state="$2"  # expected value (can be "on"/"off" or other values as needed)
@@ -114,7 +114,7 @@ function restore_all_features() {
 }
 
 # Prepare the test environment:
-# 1. Create the database (if it does not exist)
+# 1. Create the database (if it does not exist).
 # 2. Run the sysbench prepare phase to create tables and insert test data.
 function prepare_database() {
   echo ">>> Checking if database '${DATABASE}' exists and creating it if necessary..."
@@ -132,13 +132,14 @@ function prepare_database() {
     prepare
 }
 
-# Run the sysbench benchmark and collect a CPU profile concurrently.
+# Run the sysbench benchmark and concurrently collect CPU and block profiles.
 function run_benchmark() {
   local test_name="$1"
   local test_dir="$2"
   echo "==== Starting benchmark: [${test_name}] ===="
   local sysbench_log="${test_dir}/${test_name}_sysbench.log"
-  local cpu_profile_file="${test_dir}/${test_name}_cpuprofile.pprof"
+  local cpu_profile_file="${test_dir}/${test_name}_cpu.pprof"
+  local block_profile_file="${test_dir}/${test_name}_block.pprof"
 
   # Construct the sysbench command.
   SYSBENCH_CMD="${SYSBENCH_PATH} ${SYSBENCH_TEST_SCRIPT} \
@@ -155,7 +156,6 @@ function run_benchmark() {
     --tables=${TABLES} \
     --table-size=${TABLE_SIZE} \
     run"
-
   echo ">>> Sysbench command: ${SYSBENCH_CMD}"
 
   # Start CPU profile collection in the background.
@@ -163,15 +163,23 @@ function run_benchmark() {
   curl -s -o "${cpu_profile_file}" "http://${TIDB_HOST}:${TIDB_PPROF_PORT}/debug/pprof/profile?seconds=${PROFILE_DURATION}" &
   CPU_PROFILE_PID=$!
 
+  # Start block profile collection in the background.
+  echo ">>> Starting block profile collection for ${PROFILE_DURATION} seconds..."
+  curl -s -o "${block_profile_file}" "http://${TIDB_HOST}:${TIDB_PPROF_PORT}/debug/pprof/block?seconds=${PROFILE_DURATION}" &
+  BLOCK_PROFILE_PID=$!
+
   # Run the sysbench benchmark, logging output.
   echo ">>> Running sysbench benchmark. Output will be logged to ${sysbench_log}"
   ${SYSBENCH_CMD} | tee "${sysbench_log}"
 
-  # Wait for the CPU profile collection to finish.
+  # Wait for both profile collections to complete.
   wait "${CPU_PROFILE_PID}"
+  wait "${BLOCK_PROFILE_PID}"
+
   echo "==== Finished benchmark: [${test_name}] ===="
   echo "   Sysbench log: ${sysbench_log}"
   echo "   CPU profile: ${cpu_profile_file}"
+  echo "   Block profile: ${block_profile_file}"
 }
 
 # Collect diagnostic data from the cluster using tiup diag collect.
