@@ -165,7 +165,7 @@ function run_benchmark() {
 
   # Start block profile collection in the background.
   echo ">>> Starting block profile collection for ${PROFILE_DURATION} seconds..."
-  curl -s -o "${block_profile_file}" "http://${TIDB_HOST}:${TIDB_PPROF_PORT}/debug/pprof/block?seconds=${PROFILE_DURATION}" &
+  curl -s -o "${block_profile_file}" "http://${TIDB_HOST}:${TIDB_PPROF_PORT}/debug/pprof/mutex?seconds=${PROFILE_DURATION}" &
   BLOCK_PROFILE_PID=$!
 
   # Run the sysbench benchmark, logging output.
