@@ -7,21 +7,16 @@
 # In addition, the script performs a preparation phase where:
 #   1. It creates the "sbtest" database if it does not already exist.
 #   2. It runs the sysbench prepare command to create the necessary tables and insert data.
-#
-# Features to test (each will be individually toggled):
-#   tidb_use_plan_baselines
-#   tidb_plan_cache_invalidation_on_fresh_stats
-#   tidb_enable_stmt_summary
-#   tidb_enable_collect_execution_info
-#   tidb_enable_resource_control
-#   tidb_txn_assertion_level            (example: "fast" vs "off")
-#   tidb_guarantee_linearizability      (example: "on" vs "off")
 
 set -euo pipefail
 
 #######################
 # Configuration Parameters
 #######################
+
+# Optional: Specify a single feature to test. Leave empty to test all features.
+# Example: SINGLE_FEATURE="tidb_schema_cache_size" ./run_benchmark.sh
+SINGLE_FEATURE=${SINGLE_FEATURE:-""}
 
 # TiDB connection and pprof settings (adjust as needed)
 CLUSTER_NAME=${CLUSTER_NAME:-"test-zq"}
@@ -54,8 +49,8 @@ EXTRA_OPTS=${EXTRA_OPTS:="--report-interval=10 --percentile=99 --mysql-ignore-er
 RESULTS_DIR="results_$(date +%Y%m%d_%H%M%S)"
 mkdir -p "${RESULTS_DIR}"
 
-# List of feature variables to test
-FEATURES=(
+# List of all available feature variables to test
+AVAILABLE_FEATURES=(
   "tidb_use_plan_baselines"
   "tidb_plan_cache_invalidation_on_fresh_stats"
   "tidb_enable_stmt_summary"
@@ -63,6 +58,7 @@ FEATURES=(
   "tidb_enable_resource_control"
   "tidb_txn_assertion_level"
   "tidb_guarantee_linearizability"
+  "tidb_schema_cache_size"
 )
 
 # Define baseline and test states (you may adjust these values as needed)
@@ -74,6 +70,7 @@ declare -A BASELINE_VALUES=(
   ["tidb_enable_resource_control"]="on"
   ["tidb_txn_assertion_level"]="fast"
   ["tidb_guarantee_linearizability"]="on"
+  ["tidb_schema_cache_size"]="536870912"
 )
 
 declare -A TEST_VALUES=(
@@ -84,7 +81,33 @@ declare -A TEST_VALUES=(
   ["tidb_enable_resource_control"]="off"
   ["tidb_txn_assertion_level"]="off"
   ["tidb_guarantee_linearizability"]="off"
+  ["tidb_schema_cache_size"]="0"
 )
+
+# Set the features to test based on SINGLE_FEATURE
+if [[ -n "$SINGLE_FEATURE" ]]; then
+  echo "Testing only feature: $SINGLE_FEATURE"
+  # Check if the specified feature exists in AVAILABLE_FEATURES
+  feature_exists=0
+  for feature in "${AVAILABLE_FEATURES[@]}"; do
+    if [[ "$feature" == "$SINGLE_FEATURE" ]]; then
+      feature_exists=1
+      break
+    fi
+  done
+  
+  if [[ $feature_exists -eq 0 ]]; then
+    echo "Error: Feature '$SINGLE_FEATURE' not found in available features list."
+    echo "Available features: ${AVAILABLE_FEATURES[*]}"
+    exit 1
+  fi
+  
+  # Set FEATURES to only include the specified feature
+  FEATURES=("$SINGLE_FEATURE")
+else
+  # Use all available features
+  FEATURES=("${AVAILABLE_FEATURES[@]}")
+fi
 
 #######################
 # Helper Functions
@@ -108,7 +131,7 @@ function set_feature_state() {
 function restore_all_features() {
   echo ">>> Restoring all features to baseline states..."
   local feature
-  for feature in "${FEATURES[@]}"; do
+  for feature in "${AVAILABLE_FEATURES[@]}"; do
     set_feature_state "$feature" "${BASELINE_VALUES[$feature]}"
   done
 }
@@ -130,6 +153,33 @@ function prepare_database() {
     --tables=${TABLES} \
     --table-size=${TABLE_SIZE} \
     prepare
+}
+
+# Run a warmup cycle without recording results
+function run_warmup() {
+  local feature="$1"
+  echo ">>> Running warmup after changing ${feature}..."
+  
+  # Use shorter runtime for warmup
+  local WARMUP_RUNTIME=60
+  
+  # Warmup command without collecting profiles
+  ${SYSBENCH_PATH} ${SYSBENCH_TEST_SCRIPT} \
+    --threads=${THREADS} \
+    --time=${WARMUP_RUNTIME} \
+    --rate=${RATE} \
+    --db-driver=mysql \
+    --mysql-db=${DATABASE} \
+    --mysql-host=${TIDB_HOST} \
+    --mysql-port=${TIDB_PORT} \
+    --mysql-user=${TIDB_USER} \
+    --mysql-password=${TIDB_PASSWORD} \
+    ${EXTRA_OPTS} \
+    --tables=${TABLES} \
+    --table-size=${TABLE_SIZE} \
+    run > /dev/null 2>&1
+    
+  echo ">>> Warmup complete"
 }
 
 # Run the sysbench benchmark and concurrently collect CPU and block profiles.
@@ -219,21 +269,28 @@ for feature in "${FEATURES[@]}"; do
   echo "Testing feature: Setting ${feature} from baseline [${BASELINE_VALUES[$feature]}] to test state [${TEST_VALUES[$feature]}]"
   restore_all_features
   set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
-  echo ">>> Waiting 60 seconds..."
-  sleep 60
+  echo ">>> Waiting 30 seconds after setting change..."
+  sleep 30
+  
+  # Run a dedicated warmup after changing the setting
+  run_warmup "${feature}"
+  echo ">>> Waiting 30 seconds after warmup..."
+  sleep 30
   
   run_benchmark "feature_${feature}_test" "${RESULTS_DIR}"
 done
 
-# Optionally, run a benchmark with all features set to their test states.
-echo "----------------------------------------------"
-echo "Testing: Setting ALL features to their test states"
-for feature in "${FEATURES[@]}"; do
-  set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
-done
-echo ">>> Waiting 60 seconds..."
-sleep 60
-run_benchmark "all_features_test" "${RESULTS_DIR}"
+# Run all features test only if testing all features
+if [[ -z "$SINGLE_FEATURE" ]]; then
+  echo "----------------------------------------------"
+  echo "Testing: Setting ALL features to their test states"
+  for feature in "${AVAILABLE_FEATURES[@]}"; do
+    set_feature_state "${feature}" "${TEST_VALUES[$feature]}"
+  done
+  echo ">>> Waiting 60 seconds..."
+  sleep 60
+  run_benchmark "all_features_test" "${RESULTS_DIR}"
+fi
 
 echo "=============================================="
 echo "All tests completed. Results are stored in directory: ${RESULTS_DIR}"
