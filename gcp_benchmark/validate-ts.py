@@ -47,7 +47,8 @@ class TiDBFutureTSTest:
                     password=self.password,
                     database=self.database,
                     connection_timeout=10,
-                    get_warnings=True
+                    get_warnings=True,
+                    autocommit=True  # Ensure queries are not in transaction
                 )
                 self.cursor = self.conn.cursor()
                 print(f"Connected to TiDB: {self.host}:{self.port}")
@@ -112,7 +113,8 @@ class TiDBFutureTSTest:
                 port=self.port,
                 user=self.user,
                 password=self.password,
-                database=self.database
+                database=self.database,
+                autocommit=True  # Ensure queries are not in transaction
             )
             split_cursor = split_conn.cursor()
             
@@ -213,7 +215,8 @@ class TiDBFutureTSTest:
                 user=self.user,
                 password=self.password,
                 database=self.database,
-                connection_timeout=300  # Increase connection timeout
+                connection_timeout=300,
+                autocommit=True  # Ensure queries are not in transaction
             )
             cursor = conn.cursor()
             
@@ -290,7 +293,8 @@ class TiDBFutureTSTest:
                                 user=self.user,
                                 password=self.password,
                                 database=self.database,
-                                connection_timeout=300
+                                connection_timeout=300,
+                                autocommit=True  # Ensure queries are not in transaction
                             )
                             cursor = conn.cursor()
                             print(f"Client {client_id} reconnected")
