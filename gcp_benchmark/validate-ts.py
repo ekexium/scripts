@@ -8,6 +8,7 @@ import random
 import signal
 import sys
 import time
+import threading  # Added for thread synchronization
 
 import mysql.connector
 
@@ -28,31 +29,122 @@ class TiDBFutureTSTest:
         self.test_results = {}
         self.conn = None
         self.cursor = None
+        self.counter_lock = threading.Lock()  # Lock for thread safety
 
     def connect(self):
         """Establish connection to TiDB"""
+        retry_count = 0
+        max_retries = 3
+        retry_interval = 2  # seconds
+        
+        while retry_count < max_retries:
+            try:
+                self.conn = mysql.connector.connect(
+                    host=self.host,
+                    port=self.port,
+                    user=self.user,
+                    password=self.password,
+                    database=self.database,
+                    connection_timeout=10,
+                    get_warnings=True
+                )
+                self.cursor = self.conn.cursor()
+                print(f"Connected to TiDB: {self.host}:{self.port}")
+                return True
+            except mysql.connector.Error as err:
+                retry_count += 1
+                if retry_count < max_retries:
+                    print(f"Connection attempt {retry_count} failed: {err}. Retrying in {retry_interval} seconds...")
+                    time.sleep(retry_interval)
+                    retry_interval *= 2  # Exponential backoff
+                else:
+                    print(f"Failed to connect to TiDB after {max_retries} attempts: {err}")
+                    return False
+            except Exception as e:
+                print(f"Unexpected error connecting to TiDB: {e}")
+                return False
+
+    def close(self):
+        """Close database connection safely"""
         try:
-            self.conn = mysql.connector.connect(
+            # Attempt to consume any unread results
+            if self.cursor:
+                try:
+                    while self.cursor.nextset():
+                        pass
+                except:
+                    pass
+                self.cursor.close()
+                
+            if self.conn:
+                try:
+                    self.conn.commit()  # Commit any pending transactions
+                except:
+                    pass
+                    
+                # If there are still unread results, we need to handle them
+                try:
+                    self.conn.cmd_reset_connection()  # Reset the connection state
+                except:
+                    pass
+                    
+                self.conn.close()
+                
+            print("Database connection closed")
+        except Exception as e:
+            print(f"Error during connection cleanup: {e}")
+            # Last resort - try to force close if regular close fails
+            try:
+                if self.conn and self.conn.is_connected():
+                    self.conn.close()
+            except:
+                pass
+
+    def split_table(self):
+        """Split table into multiple regions safely"""
+        try:
+            print(f"Splitting table into {self.region_count} regions...")
+            
+            # Use a separate connection for SPLIT operations to isolate any result handling issues
+            split_conn = mysql.connector.connect(
                 host=self.host,
                 port=self.port,
                 user=self.user,
                 password=self.password,
                 database=self.database
             )
-            self.cursor = self.conn.cursor()
-            print(f"Connected to TiDB: {self.host}:{self.port}")
-            return True
+            split_cursor = split_conn.cursor()
+            
+            try:
+                # Execute the SPLIT TABLE command
+                split_cursor.execute(f"SPLIT TABLE {self.table_name} BETWEEN (0) AND ({self.rows}) REGIONS {self.region_count}")
+                
+                # Make sure to consume all results
+                while split_cursor.nextset():
+                    pass
+                    
+                # Verify the split worked by checking region count
+                split_cursor.execute(f"SHOW TABLE {self.table_name} REGIONS")
+                regions = split_cursor.fetchall()
+                region_count = len(regions)
+                print(f"Table {self.table_name} now has {region_count} regions")
+                
+                return region_count
+                
+            finally:
+                # Clean up the split connection resources
+                try:
+                    split_cursor.close()
+                except:
+                    pass
+                try:
+                    split_conn.close()
+                except:
+                    pass
+                    
         except Exception as e:
-            print(f"Failed to connect to TiDB: {e}")
-            return False
-
-    def close(self):
-        """Close database connection"""
-        if self.cursor:
-            self.cursor.close()
-        if self.conn:
-            self.conn.close()
-        print("Database connection closed")
+            print(f"Failed to split table: {e}")
+            return 0
 
     def setup_table(self):
         """Create test table and insert data"""
@@ -70,9 +162,11 @@ class TiDBFutureTSTest:
                 )
             """)
 
-            # Insert test data
+            # Insert test data with optimized batch size to reduce memory pressure
             print(f"Inserting {self.rows} rows of test data...")
-            batch_size = 10000
+            batch_size = 5000  # Smaller batch size to reduce memory usage
+            progress_step = max(1, self.rows // 20)  # Show progress every 5%
+            
             for i in range(0, self.rows, batch_size):
                 values = []
                 end = min(i + batch_size, self.rows)
@@ -83,18 +177,16 @@ class TiDBFutureTSTest:
                 sql = f"INSERT INTO {self.table_name} (id, value, region_key) VALUES {','.join(values)}"
                 self.cursor.execute(sql)
                 self.conn.commit()
-                print(f"Inserted {end} / {self.rows} rows")
-
-            # Split table into multiple regions using the correct syntax
-            print(f"Splitting table into {self.region_count} regions...")
-            # SPLIT TABLE syntax: SPLIT TABLE table_name BETWEEN (lower_value) AND (upper_value) REGIONS region_num
-            # Use a single split command to evenly split the table
-            self.cursor.execute(f"SPLIT TABLE {self.table_name} BETWEEN (0) AND ({self.rows}) REGIONS {self.region_count}")
                 
-            # Verify region count
-            self.cursor.execute(f"SHOW TABLE {self.table_name} REGIONS")
-            regions = self.cursor.fetchall()
-            print(f"Table {self.table_name} now has {len(regions)} regions")
+                # Show progress at regular intervals
+                if i % progress_step < batch_size:
+                    progress = min(100, round((end / self.rows) * 100))
+                    print(f"Inserted {end:,} / {self.rows:,} rows ({progress}%)")
+
+            # Split the table using a separate method
+            region_count = self.split_table()
+            if region_count == 0:
+                print("Warning: Table splitting may have failed")
 
             # Add an index on region_key to ensure cross-region scan
             self.cursor.execute(f"CREATE INDEX idx_region_key ON {self.table_name} (region_key)")
@@ -103,6 +195,12 @@ class TiDBFutureTSTest:
             return True
         except Exception as e:
             print(f"Failed to set up test table: {e}")
+            # Try to consume any unread results on error
+            try:
+                while self.cursor and self.cursor.nextset():
+                    pass
+            except:
+                pass
             return False
 
     def run_client(self, client_id, queries_counter):
@@ -117,7 +215,8 @@ class TiDBFutureTSTest:
                 user=self.user,
                 password=self.password,
                 database=self.database,
-                connection_timeout=300  # Increase connection timeout
+                connection_timeout=300,  # Increase connection timeout
+                query_timeout=30  # Add query timeout to prevent hanging queries
             )
             cursor = conn.cursor()
             
@@ -168,7 +267,8 @@ class TiDBFutureTSTest:
                                 user=self.user,
                                 password=self.password,
                                 database=self.database,
-                                connection_timeout=300
+                                connection_timeout=300,
+                                query_timeout=30
                             )
                             cursor = conn.cursor()
                             print(f"Client {client_id} reconnected")
@@ -177,11 +277,15 @@ class TiDBFutureTSTest:
                     
                     time.sleep(0.1)  # Avoid immediate retry after failure
 
-            queries_counter.append({
+            # Thread-safe update of shared counter
+            local_result = {
                 "queries": query_count, 
                 "errors": error_count,
                 "records_scanned": records_scanned
-            })
+            }
+            with self.counter_lock:
+                queries_counter.append(local_result)
+                
             print(f"Client {client_id} completed: {query_count} queries executed, {error_count} failures, {records_scanned:,} records scanned")
             
         except Exception as e:
@@ -201,37 +305,63 @@ class TiDBFutureTSTest:
     def run_test(self, concurrency):
         """Run test with specified concurrency"""
         print(f"\nStarting test with concurrency {concurrency}...")
+        
+        # Initialize the thread-safe counter
         queries_counter = []
         
+        # Limit max concurrent connections to avoid overwhelming the database
+        max_workers = min(concurrency, 100)  # Cap at 100 connections max
+        if max_workers < concurrency:
+            print(f"Warning: Limiting worker pool to {max_workers} (requested: {concurrency})")
+            print(f"Will run {concurrency} virtual clients distributed across {max_workers} worker threads")
+        
         # Start concurrent clients
-        client_pool = concurrent.futures.ThreadPoolExecutor(max_workers=concurrency)
+        client_pool = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
         client_futures = []
         
+        start_time = time.time()
+        active_clients = 0
+        
         try:
+            # Submit client tasks
             for i in range(concurrency):
                 future = client_pool.submit(self.run_client, i, queries_counter)
                 client_futures.append(future)
+                active_clients += 1
+                
+                # Report progress for large concurrency values
+                if concurrency > 20 and i > 0 and i % 20 == 0:
+                    print(f"Started {i} of {concurrency} clients...")
             
-            # Wait for clients to complete
+            # Wait for clients to complete with progress reporting
+            completed = 0
             for future in concurrent.futures.as_completed(client_futures):
                 try:
                     future.result()
+                    completed += 1
+                    if concurrency > 20 and completed % 20 == 0:
+                        print(f"Completed {completed} of {concurrency} clients...")
                 except Exception as e:
                     print(f"Client execution error: {e}")
+                    active_clients -= 1
         finally:
             # Ensure thread pool is closed
+            print(f"Waiting for all {active_clients} active clients to complete...")
             client_pool.shutdown(wait=True)
+        
+        end_time = time.time()
+        actual_duration = end_time - start_time
         
         # Collect and return results
         total_queries = sum(item["queries"] for item in queries_counter)
         total_errors = sum(item["errors"] for item in queries_counter)
         total_records = sum(item["records_scanned"] for item in queries_counter)
-        qps = total_queries / self.duration if self.duration > 0 else 0
-        records_per_sec = total_records / self.duration if self.duration > 0 else 0
+        qps = total_queries / actual_duration if actual_duration > 0 else 0
+        records_per_sec = total_records / actual_duration if actual_duration > 0 else 0
         
         result = {
             "concurrency": concurrency,
-            "duration": self.duration,
+            "duration": actual_duration,
             "total_queries": total_queries,
             "total_errors": total_errors,
             "total_records_scanned": total_records,
@@ -243,6 +373,7 @@ class TiDBFutureTSTest:
         self.test_results[concurrency] = result
         
         print(f"Test results for concurrency {concurrency}:")
+        print(f"  Actual test duration: {actual_duration:.2f} seconds")
         print(f"  Total queries: {total_queries}")
         print(f"  Total errors: {total_errors}")
         print(f"  Total records scanned: {total_records:,}")
