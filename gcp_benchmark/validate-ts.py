@@ -272,9 +272,9 @@ class TiDBFutureTSTest:
                     error_count += 1
                     # Only report the first error and then every 100th error in non-verbose mode
                     if self.verbose and (error_count == 1 or (error_count <= 10 and error_count % 5 == 0) or error_count % 100 == 0):
-                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)[:100]}...")
+                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)}...")
                     elif not self.verbose and (error_count == 1 or error_count % 500 == 0):
-                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)[:100]}...")
+                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)}...")
                     
                     # Try to reconnect if connection is lost
                     if conn and not conn.is_connected():
