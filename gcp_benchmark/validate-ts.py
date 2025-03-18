@@ -245,7 +245,7 @@ class TiDBFutureTSTest:
                     future_ts = f"NOW() + INTERVAL {self.future_ts} MILLISECOND"
                     
                     # Simple COUNT(*) query with future timestamp
-                    query = f"SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP ({future_ts})"
+                    query = f"SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP {future_ts}"
                     
                     cursor.execute(query)
                     result = cursor.fetchone()
