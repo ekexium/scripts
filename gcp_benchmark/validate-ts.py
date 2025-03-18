@@ -209,7 +209,7 @@ class TiDBFutureTSTest:
         cursor = None
         try:
             # Create an independent connection
-            print(f"Client {client_id}: Connecting to TiDB...")
+            print(f"Client {client_id}: Connecting to TiDB...") if client_id < 5 else None
             conn = mysql.connector.connect(
                 host=self.host,
                 port=self.port,
@@ -219,7 +219,7 @@ class TiDBFutureTSTest:
                 connection_timeout=300  # Increase connection timeout
             )
             cursor = conn.cursor()
-            print(f"Client {client_id}: Connected successfully")
+            print(f"Client {client_id}: Connected successfully") if client_id < 5 else None
             
             start_time = time.time()
             query_count = 0
@@ -231,7 +231,7 @@ class TiDBFutureTSTest:
                 test_query = f"SELECT COUNT(*) FROM {self.table_name} LIMIT 1"
                 cursor.execute(test_query)
                 test_result = cursor.fetchone()
-                print(f"Client {client_id}: Table verification successful. Found {test_result[0]} total rows.")
+                print(f"Client {client_id}: Table verification successful. Found {test_result[0]} total rows.") if client_id < 3 else None
             except Exception as e:
                 print(f"Client {client_id}: ERROR - Cannot access test table: {e}")
                 raise
@@ -248,20 +248,16 @@ class TiDBFutureTSTest:
                     
                     # Execute cross-region query
                     query = f"""
-                    SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP {future_ts}
+                    SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP ({future_ts})
                     WHERE region_key BETWEEN {min_region} AND {max_region}
                     """
                     
-                    # Log the first few queries for debugging
-                    if query_count < 2:
-                        print(f"Client {client_id}: Executing query: {query}")
+                    # Log only the very first query for debugging
+                    if query_count == 0 and client_id == 0:
+                        print(f"Example query: {query}")
                     
                     cursor.execute(query)
                     result = cursor.fetchone()
-                    
-                    # Log the first few results for debugging
-                    if query_count < 2:
-                        print(f"Client {client_id}: Query result: {result}")
                     
                     # Accumulate scanned records
                     if result and result[0]:
@@ -269,16 +265,15 @@ class TiDBFutureTSTest:
                     
                     query_count += 1
                     
-                    # Progress reporting
-                    if query_count % 100 == 0:
+                    # Progress reporting (reduced frequency)
+                    if query_count % 1000 == 0 and client_id < 3:
                         elapsed = time.time() - start_time
                         print(f"Client {client_id}: Progress: {query_count} queries in {elapsed:.1f}s ({query_count/elapsed:.1f} qps)")
                         
                 except Exception as e:
                     error_count += 1
-                    if error_count % 10 == 1 or error_count < 5:  # Print more errors at the start
-                        print(f"Client {client_id} query failed ({error_count} times): {e}")
-                        print(f"Query was: {query}")
+                    if error_count == 1 or (error_count <= 10 and error_count % 5 == 0) or error_count % 100 == 0:
+                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)[:100]}...")
                     
                     # Try to reconnect if connection is lost
                     if conn and not conn.is_connected():
@@ -313,7 +308,7 @@ class TiDBFutureTSTest:
             with self.counter_lock:
                 queries_counter.append(local_result)
                 
-            print(f"Client {client_id} completed: {query_count} queries executed, {error_count} failures, {records_scanned:,} records scanned")
+            print(f"Client {client_id} completed: {query_count} queries, {error_count} errors, {records_scanned:,} records")
             
         except Exception as e:
             print(f"Client {client_id} failed with fatal error: {e}")
@@ -359,8 +354,8 @@ class TiDBFutureTSTest:
                 client_futures.append(future)
                 active_clients += 1
                 
-                # Report progress for large concurrency values
-                if concurrency > 20 and i > 0 and i % 20 == 0:
+                # Report progress for large concurrency values (less frequently)
+                if concurrency > 50 and i > 0 and i % 50 == 0:
                     print(f"Started {i} of {concurrency} clients...")
             
             # Wait for clients to complete with progress reporting
@@ -369,7 +364,7 @@ class TiDBFutureTSTest:
                 try:
                     future.result()
                     completed += 1
-                    if concurrency > 20 and completed % 20 == 0:
+                    if concurrency > 50 and completed % 50 == 0:
                         print(f"Completed {completed} of {concurrency} clients...")
                 except Exception as e:
                     print(f"Client execution error: {e}")
