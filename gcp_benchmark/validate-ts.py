@@ -242,7 +242,9 @@ class TiDBFutureTSTest:
             while time.time() - start_time < self.duration:
                 try:
                     # Use fixed future timestamp (current time + fixed milliseconds)
-                    future_ts = f"NOW() + INTERVAL {self.future_ts} MILLISECOND"
+                    # Convert milliseconds to microseconds (1 millisecond = 1000 microseconds)
+                    microseconds = self.future_ts * 1000
+                    future_ts = f"NOW() + INTERVAL {microseconds} MICROSECOND"
                     
                     # Simple COUNT(*) query with future timestamp
                     query = f"SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP {future_ts}"
