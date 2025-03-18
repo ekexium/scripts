@@ -26,6 +26,7 @@ class TiDBFutureTSTest:
         self.concurrency_levels = args.concurrency_levels
         self.future_ts = args.future_ts
         self.cooldown = args.cooldown
+        self.verbose = args.verbose
         self.test_results = {}
         self.conn = None
         self.cursor = None
@@ -156,9 +157,7 @@ class TiDBFutureTSTest:
             print(f"Creating test table {self.table_name}...")
             self.cursor.execute(f"""
                 CREATE TABLE {self.table_name} (
-                    id BIGINT PRIMARY KEY,
-                    value VARCHAR(100),
-                    region_key INT
+                    id INT PRIMARY KEY
                 )
             """)
 
@@ -171,10 +170,9 @@ class TiDBFutureTSTest:
                 values = []
                 end = min(i + batch_size, self.rows)
                 for j in range(i, end):
-                    region_key = j % self.region_count
-                    values.append(f"({j}, 'value_{j}', {region_key})")
+                    values.append(f"({j})")
                 
-                sql = f"INSERT INTO {self.table_name} (id, value, region_key) VALUES {','.join(values)}"
+                sql = f"INSERT INTO {self.table_name} (id) VALUES {','.join(values)}"
                 self.cursor.execute(sql)
                 self.conn.commit()
                 
@@ -188,10 +186,6 @@ class TiDBFutureTSTest:
             if region_count == 0:
                 print("Warning: Table splitting may have failed")
 
-            # Add an index on region_key to ensure cross-region scan
-            self.cursor.execute(f"CREATE INDEX idx_region_key ON {self.table_name} (region_key)")
-            self.conn.commit()
-            
             return True
         except Exception as e:
             print(f"Failed to set up test table: {e}")
@@ -209,7 +203,10 @@ class TiDBFutureTSTest:
         cursor = None
         try:
             # Create an independent connection
-            print(f"Client {client_id}: Connecting to TiDB...") if client_id < 5 else None
+            # Only show connection messages in verbose mode
+            if self.verbose:
+                print(f"Client {client_id}: Connecting to TiDB...")
+                
             conn = mysql.connector.connect(
                 host=self.host,
                 port=self.port,
@@ -219,7 +216,9 @@ class TiDBFutureTSTest:
                 connection_timeout=300  # Increase connection timeout
             )
             cursor = conn.cursor()
-            print(f"Client {client_id}: Connected successfully") if client_id < 5 else None
+            
+            if self.verbose:
+                print(f"Client {client_id}: Connected successfully") 
             
             start_time = time.time()
             query_count = 0
@@ -231,7 +230,10 @@ class TiDBFutureTSTest:
                 test_query = f"SELECT COUNT(*) FROM {self.table_name} LIMIT 1"
                 cursor.execute(test_query)
                 test_result = cursor.fetchone()
-                print(f"Client {client_id}: Table verification successful. Found {test_result[0]} total rows.") if client_id < 3 else None
+                
+                # Only client 0 reports table verification in non-verbose mode
+                if self.verbose or client_id == 0:
+                    print(f"Client {client_id}: Table verification successful. Found {test_result[0]} total rows.")
             except Exception as e:
                 print(f"Client {client_id}: ERROR - Cannot access test table: {e}")
                 raise
@@ -242,37 +244,36 @@ class TiDBFutureTSTest:
                     # Use fixed future timestamp (current time + fixed milliseconds)
                     future_ts = f"NOW() + INTERVAL {self.future_ts} MILLISECOND"
                     
-                    # Randomly select region_key range, ensuring at least 1 cross-region
-                    min_region = random.randint(0, self.region_count - 2)
-                    max_region = random.randint(min_region + 1, self.region_count - 1)
-                    
-                    # Execute cross-region query
+                    # Simple COUNT(*) query with future timestamp
                     query = f"""
-                    SELECT COUNT(*) FROM {self.table_name} AS OF TIMESTAMP ({future_ts})
-                    WHERE region_key BETWEEN {min_region} AND {max_region}
+                    SELECT COUNT(*) 
+                    FROM {self.table_name} AS OF TIMESTAMP ({future_ts})
                     """
-                    
-                    # Log only the very first query for debugging
-                    if query_count == 0 and client_id == 0:
-                        print(f"Example query: {query}")
                     
                     cursor.execute(query)
                     result = cursor.fetchone()
                     
-                    # Accumulate scanned records
-                    if result and result[0]:
-                        records_scanned += result[0]
+                    # Count records found
+                    record_count = result[0] if result else 0
+                    records_scanned += record_count
                     
                     query_count += 1
                     
-                    # Progress reporting (reduced frequency)
-                    if query_count % 1000 == 0 and client_id < 3:
+                    # Progress reporting (further reduced frequency and only for client 0 unless verbose)
+                    if self.verbose:
+                        if query_count % 1000 == 0 and client_id < 3:
+                            elapsed = time.time() - start_time
+                            print(f"Client {client_id}: Progress: {query_count} queries in {elapsed:.1f}s ({query_count/elapsed:.1f} qps)")
+                    elif client_id == 0 and query_count % 5000 == 0:
                         elapsed = time.time() - start_time
-                        print(f"Client {client_id}: Progress: {query_count} queries in {elapsed:.1f}s ({query_count/elapsed:.1f} qps)")
+                        print(f"Progress: {query_count} queries in {elapsed:.1f}s ({query_count/elapsed:.1f} qps)")
                         
                 except Exception as e:
                     error_count += 1
-                    if error_count == 1 or (error_count <= 10 and error_count % 5 == 0) or error_count % 100 == 0:
+                    # Only report the first error and then every 100th error in non-verbose mode
+                    if self.verbose and (error_count == 1 or (error_count <= 10 and error_count % 5 == 0) or error_count % 100 == 0):
+                        print(f"Client {client_id}: Query failed ({error_count} times): {str(e)[:100]}...")
+                    elif not self.verbose and (error_count == 1 or error_count % 500 == 0):
                         print(f"Client {client_id}: Query failed ({error_count} times): {str(e)[:100]}...")
                     
                     # Try to reconnect if connection is lost
@@ -381,29 +382,47 @@ class TiDBFutureTSTest:
         total_queries = sum(item["queries"] for item in queries_counter)
         total_errors = sum(item["errors"] for item in queries_counter)
         total_records = sum(item["records_scanned"] for item in queries_counter)
-        qps = total_queries / actual_duration if actual_duration > 0 else 0
+        
+        # Calculate total attempts (including errors) for QPS
+        total_attempts = total_queries + total_errors
+        
+        # Calculate QPS based on all attempts (including errors)
+        attempts_per_sec = total_attempts / actual_duration if actual_duration > 0 else 0
+        
+        # Calculate successful QPS (may be 0 or very low with future timestamp)
+        successful_qps = total_queries / actual_duration if actual_duration > 0 else 0
+        
+        # Calculate records scan rate
         records_per_sec = total_records / actual_duration if actual_duration > 0 else 0
+        
+        # Calculate error rate
+        error_rate = total_errors / total_attempts if total_attempts > 0 else 0
         
         result = {
             "concurrency": concurrency,
             "duration": actual_duration,
+            "total_attempts": total_attempts,
             "total_queries": total_queries,
             "total_errors": total_errors,
             "total_records_scanned": total_records,
-            "qps": qps,
+            "attempts_per_sec": attempts_per_sec,
+            "successful_qps": successful_qps,
             "records_per_sec": records_per_sec,
-            "error_rate": (total_errors / total_queries if total_queries > 0 else 0)
+            "error_rate": error_rate
         }
         
         self.test_results[concurrency] = result
         
         print(f"Test results for concurrency {concurrency}:")
         print(f"  Actual test duration: {actual_duration:.2f} seconds")
-        print(f"  Total queries: {total_queries}")
-        print(f"  Total errors: {total_errors}")
+        print(f"  Total query attempts: {total_attempts}")
+        print(f"  Successful queries: {total_queries}")
+        print(f"  Failed queries: {total_errors}")
         print(f"  Total records scanned: {total_records:,}")
-        print(f"  QPS: {qps:.2f}")
-        print(f"  Records scan rate: {records_per_sec:.2f} records/sec")
+        print(f"  Attempts/sec: {attempts_per_sec:.2f}")
+        if total_queries > 0:
+            print(f"  Successful QPS: {successful_qps:.2f}")
+        print(f"  Error rate: {error_rate*100:.2f}%")
             
         # System cooldown between tests
         print(f"Waiting for system cooldown, {self.cooldown} seconds...")
@@ -432,16 +451,16 @@ class TiDBFutureTSTest:
         print(f"Future timestamp: {self.future_ts} milliseconds\n")
         
         # Create results table
-        headers = ["Concurrency", "Total Queries", "Total Errors", "QPS", "Records/sec", "Error Rate(%)"]
+        headers = ["Concurrency", "Total Attempts", "Success", "Errors", "Attempts/sec", "Error Rate(%)"]
         rows = []
         
         for concurrency, result in sorted(self.test_results.items()):
             rows.append([
                 concurrency,
+                f"{result['total_attempts']:,}",
                 f"{result['total_queries']:,}",
                 f"{result['total_errors']:,}",
-                f"{result['qps']:.2f}",
-                f"{result['records_per_sec']:.2f}",
+                f"{result['attempts_per_sec']:.2f}",
                 f"{result['error_rate']*100:.2f}%"
             ])
         
@@ -477,6 +496,7 @@ def parse_arguments():
                         help='Concurrency levels to test')
     parser.add_argument('--future-ts', type=int, default=1000, help='Fixed future timestamp in milliseconds')
     parser.add_argument('--cooldown', type=int, default=60, help='Cooldown time between tests (seconds)')
+    parser.add_argument('--verbose', action='store_true', help='Enable verbose logging')
 
     return parser.parse_args()
 
