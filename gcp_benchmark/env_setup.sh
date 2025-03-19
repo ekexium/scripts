@@ -13,8 +13,8 @@ sudo yum -y install gcc
 sudo yum -y install glibc-devel
 bash < <(curl -s -S -L https://raw.githubusercontent.com/moovweb/gvm/master/binscripts/gvm-installer)
 source ~/.gvm/scripts/gvm
-gvm install go1.23.2 -B
-gvm use go1.23.2
+gvm install go1.23.5 -B
+gvm use go1.23.5
 
 cd ~
 git clone https://github.com/ekexium/tidb.git

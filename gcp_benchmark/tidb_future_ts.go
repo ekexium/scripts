@@ -33,6 +33,8 @@ type TestConfig struct {
 	FutureTS          int
 	Cooldown          int
 	Verbose           bool
+	SplitRegions      bool // Whether to split the table into regions
+	UseFutureTS       bool // Whether to use future timestamp in queries
 }
 
 // TestResult holds the results of a single test run at a specific concurrency level
@@ -47,6 +49,8 @@ type TestResult struct {
 	SuccessfulQPS       float64 `json:"successful_qps"`
 	RecordsPerSec       float64 `json:"records_per_sec"`
 	ErrorRate           float64 `json:"error_rate"`
+	SplitRegions        bool    `json:"split_regions"`
+	UseFutureTS         bool    `json:"use_future_ts"`
 }
 
 // ClientResult holds the results from a single test client
@@ -169,10 +173,14 @@ func (t *TestRunner) SetupTable() error {
 		}
 	}
 
-	// Split table into regions
-	err = t.SplitTable()
-	if err != nil {
-		return err
+	// Split table into regions if configured
+	if t.Config.SplitRegions {
+		err = t.SplitTable()
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Skipping table split as per configuration")
 	}
 
 	return nil
@@ -245,6 +253,15 @@ func (t *TestRunner) RunClient(clientID int, duration time.Duration, resultChan 
 
 	if t.Config.Verbose || clientID == 0 {
 		fmt.Printf("Client %d: Table verification successful. Found %d total rows.\n", clientID, count)
+		
+		// Log query type only once at the beginning
+		if clientID == 0 {
+			if t.Config.UseFutureTS {
+				fmt.Printf("Using queries with future timestamp (AS OF TIMESTAMP) of %d ms\n", t.Config.FutureTS)
+			} else {
+				fmt.Printf("Using regular queries (without AS OF TIMESTAMP)\n")
+			}
+		}
 	}
 
 	// Run the test queries
@@ -256,10 +273,17 @@ func (t *TestRunner) RunClient(clientID int, duration time.Duration, resultChan 
 	recordsScanned := 0
 
 	for time.Now().Before(endTime) {
-		// Use fixed future timestamp
-		microseconds := t.Config.FutureTS * 1000
-		futureTS := fmt.Sprintf("NOW() + INTERVAL %d MICROSECOND", microseconds)
-		query := fmt.Sprintf("SELECT COUNT(*) FROM %s AS OF TIMESTAMP %s", t.Config.TableName, futureTS)
+		var query string
+		
+		if t.Config.UseFutureTS {
+			// Use fixed future timestamp
+			microseconds := t.Config.FutureTS * 1000
+			futureTS := fmt.Sprintf("NOW() + INTERVAL %d MICROSECOND", microseconds)
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s AS OF TIMESTAMP %s", t.Config.TableName, futureTS)
+		} else {
+			// Regular query without future timestamp
+			query = fmt.Sprintf("SELECT COUNT(*) FROM %s", t.Config.TableName)
+		}
 
 		var recordCount int
 		err := conn.QueryRow(query).Scan(&recordCount)
@@ -267,11 +291,16 @@ func (t *TestRunner) RunClient(clientID int, duration time.Duration, resultChan 
 			errorCount++
 			if t.Config.Verbose && (errorCount == 1 || (errorCount <= 10 && errorCount%5 == 0) || errorCount%100 == 0) {
 				fmt.Printf("Client %d: Query failed (%d times): %v...\n", clientID, errorCount, err)
-			} else if !t.Config.Verbose && (errorCount == 1 || errorCount%500 == 0) {
+				if errorCount == 1 {
+					fmt.Printf("Query was: %s\n", query)
+				}
+			} else if !t.Config.Verbose && (errorCount == 1) {
 				fmt.Printf("Client %d: Query failed (%d times): %v...\n", clientID, errorCount, err)
+				if errorCount == 1 {
+					fmt.Printf("Query was: %s\n", query)
+				}
 			}
 
-			time.Sleep(100 * time.Millisecond) // Avoid immediate retry
 			continue
 		}
 
@@ -364,6 +393,8 @@ func (t *TestRunner) RunTest(concurrency int) TestResult {
 		SuccessfulQPS:       successfulQPS,
 		RecordsPerSec:       recordsPerSec,
 		ErrorRate:           errorRate,
+		SplitRegions:        t.Config.SplitRegions,
+		UseFutureTS:         t.Config.UseFutureTS,
 	}
 
 	t.TestResults[concurrency] = result
@@ -408,8 +439,8 @@ func (t *TestRunner) GenerateReport() {
 	fmt.Printf("Test table: %s\n", t.Config.TableName)
 	fmt.Printf("Row count: %d\n", t.Config.Rows)
 	fmt.Printf("Test duration per concurrency: %d seconds\n", t.Config.Duration)
-	fmt.Printf("Region count: %d\n", t.Config.RegionCount)
-	fmt.Printf("Future timestamp: %d milliseconds\n\n", t.Config.FutureTS)
+	fmt.Printf("Split regions: %v (count: %d)\n", t.Config.SplitRegions, t.Config.RegionCount)
+	fmt.Printf("Use future timestamp: %v (%d milliseconds)\n\n", t.Config.UseFutureTS, t.Config.FutureTS)
 
 	// Headers
 	fmt.Println("Test Results:")
@@ -445,13 +476,26 @@ func (t *TestRunner) GenerateReport() {
 		return
 	}
 
-	err = os.WriteFile("future_ts_test_results.json", jsonData, 0644)
+	// Create a filename that includes test configuration
+	splitStatus := "nosplit"
+	if t.Config.SplitRegions {
+		splitStatus = fmt.Sprintf("split%d", t.Config.RegionCount)
+	}
+	
+	tsStatus := "regular"
+	if t.Config.UseFutureTS {
+		tsStatus = fmt.Sprintf("futurets%d", t.Config.FutureTS)
+	}
+	
+	filename := fmt.Sprintf("tidb_test_%s_%s_results.json", splitStatus, tsStatus)
+	
+	err = os.WriteFile(filename, jsonData, 0644)
 	if err != nil {
 		fmt.Printf("Failed to save test results: %v\n", err)
 		return
 	}
 
-	fmt.Println("Test results saved to future_ts_test_results.json")
+	fmt.Printf("Test results saved to %s\n", filename)
 }
 
 // parseConcurrencyLevels parses the concurrency levels from a string
@@ -490,12 +534,15 @@ func main() {
 	database := flag.String("database", "test", "Database name")
 	tableName := flag.String("table-name", "future_ts_test", "Test table name")
 	rows := flag.Int("rows", 1000000, "Number of rows in test table")
-	regionCount := flag.Int("region-count", 10, "Number of regions to split table into")
+	regionCount := flag.Int("region-count", 1000, "Number of regions to split table into")
 	duration := flag.Int("duration", 60, "Duration of each test (seconds)")
-	concurrencyStr := flag.String("concurrency", "1,5,10,20,50,100", "Comma-separated list of concurrency levels to test")
+	concurrencyStr := flag.String("concurrency", "16,128", "Comma-separated list of concurrency levels to test")
 	futureTS := flag.Int("future-ts", 1000, "Fixed future timestamp in milliseconds")
 	cooldown := flag.Int("cooldown", 60, "Cooldown time between tests (seconds)")
 	verbose := flag.Bool("verbose", false, "Enable verbose logging")
+	splitRegions := flag.Bool("split-regions", true, "Whether to split the table into regions")
+	useFutureTS := flag.Bool("use-future-ts", true, "Whether to use future timestamp in queries")
+	runAllTests := flag.Bool("run-all-tests", true, "Run tests for all combinations of split-regions and use-future-ts")
 
 	flag.Parse()
 
@@ -505,7 +552,18 @@ func main() {
 		log.Fatalf("Invalid concurrency levels: %v", err)
 	}
 
-	config := TestConfig{
+	// Setup signal handler
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		<-sigChan
+		fmt.Println("Test interrupted")
+		os.Exit(0)
+	}()
+
+	// Create base config
+	baseConfig := TestConfig{
 		Host:              *host,
 		Port:              *port,
 		User:              *user,
@@ -521,32 +579,75 @@ func main() {
 		Verbose:           *verbose,
 	}
 
-	// Setup signal handler
-	sigChan := make(chan os.Signal, 1)
-	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
-
-	go func() {
-		<-sigChan
-		fmt.Println("Test interrupted")
-		os.Exit(0)
-	}()
-
-	// Run test
-	runner := NewTestRunner(config)
-	if err := runner.Connect(); err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer runner.Close()
-
 	// Ask about table setup
+	var setupTable bool
 	var setup string
 	fmt.Print("Re-create test table (y/n)? [y]: ")
 	fmt.Scanln(&setup)
-	if setup == "" || setup == "y" || setup == "Y" {
-		if err := runner.SetupTable(); err != nil {
-			log.Fatalf("Failed to setup table: %v", err)
+	setupTable = setup == "" || setup == "y" || setup == "Y"
+
+	// Run tests based on configuration
+	if *runAllTests {
+		// Run all combinations
+		combinations := []struct {
+			split      bool
+			useFutureTS bool
+		}{
+			{false, false},
+			{false, true},
+			{true, false},
+			{true, true},
 		}
+
+		for i, combo := range combinations {
+			config := baseConfig
+			config.SplitRegions = combo.split
+			config.UseFutureTS = combo.useFutureTS
+
+			fmt.Printf("\n========================================================\n")
+			fmt.Printf("RUNNING TEST COMBINATION %d of %d\n", i+1, len(combinations))
+			fmt.Printf("Split Regions: %v, Use Future TS: %v\n", combo.split, combo.useFutureTS)
+			fmt.Printf("========================================================\n")
+
+			runner := NewTestRunner(config)
+			if err := runner.Connect(); err != nil {
+				log.Fatalf("Failed to connect to database: %v", err)
+			}
+
+			// Only setup the table for the first test combination and if requested
+			if i == 0 && setupTable {
+				if err := runner.SetupTable(); err != nil {
+					log.Fatalf("Failed to setup table: %v", err)
+				}
+			}
+
+			runner.RunAllTests()
+			runner.Close()
+
+			// Extra cooldown between test combinations
+			fmt.Printf("Waiting for extra cooldown between test combinations, %d seconds...\n", *cooldown)
+			time.Sleep(time.Duration(*cooldown) * time.Second)
+		}
+	} else {
+		// Run a single test with the specified configuration
+		config := baseConfig
+		config.SplitRegions = *splitRegions
+		config.UseFutureTS = *useFutureTS
+
+		runner := NewTestRunner(config)
+		if err := runner.Connect(); err != nil {
+			log.Fatalf("Failed to connect to database: %v", err)
+		}
+		defer runner.Close()
+
+		if setupTable {
+			if err := runner.SetupTable(); err != nil {
+				log.Fatalf("Failed to setup table: %v", err)
+			}
+		}
+
+		runner.RunAllTests()
 	}
 
-	runner.RunAllTests()
+	fmt.Println("\nAll tests completed successfully!")
 }
