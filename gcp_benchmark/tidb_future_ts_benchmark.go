@@ -44,44 +44,21 @@ type TestConfig struct {
 	CollectMetrics    bool   // Whether to collect Prometheus metrics
 }
 
-// PrometheusMetric holds a specific metric value at a point in time
-type PrometheusMetric struct {
-	Type  string  `json:"type"`
-	Value float64 `json:"value"`
-	Time  int64   `json:"time"`
-}
-
-// MetricsData holds metrics for before and after test run
-type MetricsData struct {
-	Before []PrometheusMetric `json:"before"`
-	After  []PrometheusMetric `json:"after"`
-}
-
-// MetricsDiff holds the difference between before and after metrics
-type MetricsDiff struct {
-	Type        string  `json:"type"`
-	Before      float64 `json:"before"`
-	After       float64 `json:"after"`
-	Difference  float64 `json:"difference"`
-	PercentChange float64 `json:"percent_change"`
-}
-
 // TestResult holds the results of a single test run at a specific concurrency level
 type TestResult struct {
-	Concurrency         int           `json:"concurrency"`
-	Duration            float64       `json:"duration"`
-	TotalAttempts       int           `json:"total_attempts"`
-	TotalQueries        int           `json:"total_queries"`
-	TotalErrors         int           `json:"total_errors"`
-	TotalRecordsScanned int           `json:"total_records_scanned"`
-	AttemptsPerSec      float64       `json:"attempts_per_sec"`
-	SuccessfulQPS       float64       `json:"successful_qps"`
-	RecordsPerSec       float64       `json:"records_per_sec"`
-	ErrorRate           float64       `json:"error_rate"`
-	SplitRegions        bool          `json:"split_regions"`
-	UseFutureTS         bool          `json:"use_future_ts"`
-	Metrics             MetricsData   `json:"metrics,omitempty"`
-	MetricsDiffs        []MetricsDiff `json:"metrics_diffs,omitempty"`
+	Concurrency         int     `json:"concurrency"`
+	Duration            float64 `json:"duration"`
+	TotalAttempts       int     `json:"total_attempts"`
+	TotalQueries        int     `json:"total_queries"`
+	TotalErrors         int     `json:"total_errors"`
+	TotalRecordsScanned int     `json:"total_records_scanned"`
+	AttemptsPerSec      float64 `json:"attempts_per_sec"`
+	SuccessfulQPS       float64 `json:"successful_qps"`
+	RecordsPerSec       float64 `json:"records_per_sec"`
+	ErrorRate           float64 `json:"error_rate"`
+	SplitRegions        bool    `json:"split_regions"`
+	UseFutureTS         bool    `json:"use_future_ts"`
+	TSORequests         float64 `json:"tso_requests"`
 }
 
 // ClientResult holds the results from a single test client
@@ -375,146 +352,23 @@ func (t *TestRunner) RunClient(clientID int, duration time.Duration, resultChan 
 	resultChan <- ClientResult{queryCount, errorCount, recordsScanned}
 }
 
-// queryPrometheus queries the Prometheus server and returns metrics data
-func (t *TestRunner) queryPrometheus() ([]PrometheusMetric, error) {
-	if !t.Config.CollectMetrics {
-		return nil, nil
-	}
-
-	// Check if Prometheus address is provided
-	if t.Config.PrometheusAddr == "" {
-		return nil, fmt.Errorf("Prometheus address not provided")
-	}
-
-	// Build the Prometheus query - using simple sum aggregation
-	query := `sum(rate(pd_client_request_handle_requests_duration_seconds_count{type="tso"}[1m]))`
-
-	// Build Prometheus API query URL
-	queryURL := fmt.Sprintf("http://%s:%d/api/v1/query?query=%s",
-		t.Config.PrometheusAddr, t.Config.PrometheusPort, url.QueryEscape(query))
-
-	// Make HTTP request
-	resp, err := http.Get(queryURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to query Prometheus: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read Prometheus response: %v", err)
-	}
-
-	// Parse JSON response
-	var promResp struct {
-		Status string `json:"status"`
-		Data   struct {
-			ResultType string `json:"resultType"`
-			Result     []struct {
-				Metric map[string]string `json:"metric"`
-				Value  []interface{}     `json:"value"`
-			} `json:"result"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(body, &promResp); err != nil {
-		return nil, fmt.Errorf("failed to parse Prometheus response: %v", err)
-	}
-
-	// Check if response is successful
-	if promResp.Status != "success" {
-		return nil, fmt.Errorf("Prometheus query failed with status: %s", promResp.Status)
-	}
-
-	// Extract metrics
-	var metrics []PrometheusMetric
-	for _, res := range promResp.Data.Result {
-		// For the sum aggregation, there may not be a type in the metric
-		metricType := "tso"
-		
-		// Extract timestamp and value
-		timestamp := int64(res.Value[0].(float64))
-		valueStr := res.Value[1].(string)
-		value, err := strconv.ParseFloat(valueStr, 64)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse metric value: %v", err)
-		}
-
-		metrics = append(metrics, PrometheusMetric{
-			Type:  metricType,
-			Value: value,
-			Time:  timestamp,
-		})
-	}
-
-	return metrics, nil
-}
-
-// calculateMetricsDiffs calculates the differences between before and after metrics
-func calculateMetricsDiffs(before, after []PrometheusMetric) []MetricsDiff {
-	var diffs []MetricsDiff
-
-	// Create maps for easier lookup
-	beforeMap := make(map[string]float64)
-	for _, m := range before {
-		beforeMap[m.Type] = m.Value
-	}
-
-	afterMap := make(map[string]float64)
-	for _, m := range after {
-		afterMap[m.Type] = m.Value
-	}
-
-	// Find all unique types
-	types := make(map[string]bool)
-	for t := range beforeMap {
-		types[t] = true
-	}
-	for t := range afterMap {
-		types[t] = true
-	}
-
-	// Calculate diffs for each type
-	for t := range types {
-		beforeVal := beforeMap[t]
-		afterVal := afterMap[t]
-		diff := afterVal - beforeVal
-		
-		percentChange := 0.0
-		if beforeVal > 0 {
-			percentChange = (diff / beforeVal) * 100
-		}
-
-		diffs = append(diffs, MetricsDiff{
-			Type:          t,
-			Before:        beforeVal,
-			After:         afterVal,
-			Difference:    diff,
-			PercentChange: percentChange,
-		})
-	}
-
-	return diffs
-}
-
 // RunTest runs a test with a specific concurrency level
 func (t *TestRunner) RunTest(concurrency int) TestResult {
 	fmt.Printf("\nStarting test with concurrency %d...\n", concurrency)
 
-	// Collect metrics before test if configured
-	var beforeMetrics []PrometheusMetric
+	// Collect counter value before test
+	var beforeCounter float64
 	var err error
 	if t.Config.CollectMetrics {
-		fmt.Println("Collecting metrics before test...")
-		beforeMetrics, err = t.queryPrometheus()
+		fmt.Println("Collecting counter value before test...")
+		beforeCounter, err = t.queryPrometheusCounter()
 		if err != nil {
-			fmt.Printf("WARNING: Failed to collect pre-test metrics: %v\n", err)
+			fmt.Printf("WARNING: Failed to collect pre-test counter: %v\n", err)
 		} else {
-			fmt.Printf("Collected %d metrics before test\n", len(beforeMetrics))
+			fmt.Printf("Initial TSO counter value: %.0f\n", beforeCounter)
 		}
 	}
-
+	
 	resultChan := make(chan ClientResult, concurrency)
 	var wg sync.WaitGroup
 
@@ -565,30 +419,19 @@ func (t *TestRunner) RunTest(concurrency int) TestResult {
 		errorRate = float64(totalErrors) / float64(totalAttempts)
 	}
 
-	// Collect metrics after test if configured
-	var afterMetrics []PrometheusMetric
-	var metricsDiffs []MetricsDiff
+	// Collect counter value after test
+	var afterCounter float64
+	var tsoRequestCount float64
 	if t.Config.CollectMetrics {
-		fmt.Println("Collecting metrics after test...")
-		afterMetrics, err = t.queryPrometheus()
+		fmt.Println("Collecting counter value after test...")
+		afterCounter, err = t.queryPrometheusCounter()
 		if err != nil {
-			fmt.Printf("WARNING: Failed to collect post-test metrics: %v\n", err)
+			fmt.Printf("WARNING: Failed to collect post-test counter: %v\n", err)
 		} else {
-			fmt.Printf("Collected %d metrics after test\n", len(afterMetrics))
-			
-			// Calculate differences
-			metricsDiffs = calculateMetricsDiffs(beforeMetrics, afterMetrics)
-			
-			// Print metric differences
-			if len(metricsDiffs) > 0 {
-				fmt.Println("\nTSO handling metrics (before → after):")
-				fmt.Println("---------------------------------------")
-				for _, diff := range metricsDiffs {
-					fmt.Printf("  %s: %.2f → %.2f (Δ %.2f, %.2f%%)\n", 
-						diff.Type, diff.Before, diff.After, diff.Difference, diff.PercentChange)
-				}
-				fmt.Println("---------------------------------------")
-			}
+			tsoRequestCount = afterCounter - beforeCounter
+			fmt.Printf("Final TSO counter value: %.0f\n", afterCounter)
+			fmt.Printf("TSO requests during test: %.0f\n", tsoRequestCount)
+			fmt.Printf("TSO requests per second: %.2f\n", tsoRequestCount/actualDuration)
 		}
 	}
 
@@ -606,11 +449,7 @@ func (t *TestRunner) RunTest(concurrency int) TestResult {
 		ErrorRate:           errorRate,
 		SplitRegions:        t.Config.SplitRegions,
 		UseFutureTS:         t.Config.UseFutureTS,
-		Metrics: MetricsData{
-			Before: beforeMetrics,
-			After:  afterMetrics,
-		},
-		MetricsDiffs: metricsDiffs,
+		TSORequests:         tsoRequestCount,
 	}
 
 	t.TestResults[concurrency] = result
@@ -693,76 +532,43 @@ func (t *TestRunner) GenerateReport() {
 		report.WriteString("\nPrometheus Metrics Summary:\n")
 		report.WriteString("--------------------------------------------------------------------------------\n")
 		
-		// Track metric types for averaging
-		metricTypes := make(map[string]bool)
-		metricData := make(map[string][]MetricsDiff)
-		
-		// Collect all metric types and data
+		// Print TSO request information for each concurrency
 		for _, level := range levels {
 			result := t.TestResults[level]
-			for _, diff := range result.MetricsDiffs {
-				metricTypes[diff.Type] = true
-				key := fmt.Sprintf("%d_%s", level, diff.Type)
-				metricData[key] = append(metricData[key], diff)
-			}
+			report.WriteString(fmt.Sprintf("\nConcurrency %d TSO metrics:\n", level))
+			report.WriteString(fmt.Sprintf("  Total TSO requests: %.0f\n", result.TSORequests))
+			report.WriteString(fmt.Sprintf("  TSO requests per second: %.2f\n", result.TSORequests/result.Duration))
 		}
 		
-		// Print metrics for each concurrency level
+		report.WriteString("--------------------------------------------------------------------------------\n")
+		
+		// Calculate average TSO requests across levels
+		report.WriteString("\nAverage TSO Metrics (across all concurrency levels):\n")
+		report.WriteString("--------------------------------------------------------------------------------\n")
+		
+		var totalTSORequests float64
+		var totalDuration float64
+		var count int
+		
 		for _, level := range levels {
 			result := t.TestResults[level]
-			if len(result.MetricsDiffs) == 0 {
-				report.WriteString(fmt.Sprintf("Concurrency %d: No metrics collected\n", level))
-				continue
-			}
-			
-			report.WriteString(fmt.Sprintf("\nConcurrency %d metrics:\n", level))
-			for _, diff := range result.MetricsDiffs {
-				report.WriteString(fmt.Sprintf("  %s: %.2f → %.2f (Δ %.2f, %.2f%%)\n", 
-					diff.Type, diff.Before, diff.After, diff.Difference, diff.PercentChange))
+			if result.TSORequests > 0 {
+				totalTSORequests += result.TSORequests
+				totalDuration += result.Duration
+				count++
 			}
 		}
-		report.WriteString("--------------------------------------------------------------------------------\n")
 		
-		// Calculate averages by metric type
-		report.WriteString("\nAverage Metrics by Type (across all concurrency levels):\n")
-		report.WriteString("--------------------------------------------------------------------------------\n")
-		report.WriteString(fmt.Sprintf("%-15s %-15s %-15s %-15s\n", "Metric Type", "Avg Before", "Avg After", "Avg % Change"))
-		report.WriteString("--------------------------------------------------------------------------------\n")
-		
-		// Sort metric types for consistent output
-		var types []string
-		for t := range metricTypes {
-			types = append(types, t)
-		}
-		sort.Strings(types)
-		
-		for _, metricType := range types {
-			var sumBefore, sumAfter, sumPercentChange float64
-			var count int
+		if count > 0 {
+			avgTSORequests := totalTSORequests / float64(count)
+			avgTSORate := totalTSORequests / totalDuration
 			
-			// Aggregate across all concurrency levels
-			for _, level := range levels {
-				key := fmt.Sprintf("%d_%s", level, metricType)
-				for _, diff := range metricData[key] {
-					if diff.Type == metricType {
-						sumBefore += diff.Before
-						sumAfter += diff.After
-						sumPercentChange += diff.PercentChange
-						count++
-					}
-				}
-			}
-			
-			// Only output if we have data
-			if count > 0 {
-				avgBefore := sumBefore / float64(count)
-				avgAfter := sumAfter / float64(count)
-				avgPercentChange := sumPercentChange / float64(count)
-				
-				report.WriteString(fmt.Sprintf("%-15s %-15.2f %-15.2f %-15.2f%%\n",
-					metricType, avgBefore, avgAfter, avgPercentChange))
-			}
+			report.WriteString(fmt.Sprintf("Average TSO requests per test: %.2f\n", avgTSORequests))
+			report.WriteString(fmt.Sprintf("Average TSO requests per second: %.2f\n", avgTSORate))
+		} else {
+			report.WriteString("No TSO metrics collected\n")
 		}
+		
 		report.WriteString("--------------------------------------------------------------------------------\n")
 	}
 
@@ -920,6 +726,46 @@ func (g *TestRunnerGroup) GenerateComparisonReport() {
 	}
 	report.WriteString("--------------------------------------------------------------------------------\n")
 
+	// Generate a table comparing TSO requests
+	report.WriteString("\n3. TSO Requests Comparison:\n")
+	report.WriteString("--------------------------------------------------------------------------------\n")
+
+	// Print header
+	report.WriteString(fmt.Sprintf("%-10s ", "Concurr."))
+	for _, runner := range g.Runners {
+		config := runner.Config
+		splitStatus := "No Split"
+		if config.SplitRegions {
+			splitStatus = fmt.Sprintf("Split(%d)", config.RegionCount)
+		}
+		
+		tsStatus := "Regular"
+		if config.UseFutureTS {
+			tsStatus = fmt.Sprintf("Future(%d)", config.FutureTS)
+		}
+		
+		title := fmt.Sprintf("%s,%s", splitStatus, tsStatus)
+		report.WriteString(fmt.Sprintf("%-20s ", title))
+	}
+	report.WriteString("\n")
+	report.WriteString("--------------------------------------------------------------------------------\n")
+
+	// Print data rows
+	for _, level := range levels {
+		report.WriteString(fmt.Sprintf("%-10d ", level))
+		
+		for _, runner := range g.Runners {
+			result, ok := runner.TestResults[level]
+			if ok {
+				report.WriteString(fmt.Sprintf("%-20.0f ", result.TSORequests))
+			} else {
+				report.WriteString(fmt.Sprintf("%-20s ", "N/A"))
+			}
+		}
+		report.WriteString("\n")
+	}
+	report.WriteString("--------------------------------------------------------------------------------\n")
+
 	// Calculate average metrics for each runner
 	hasMetrics := false
 	for _, runner := range g.Runners {
@@ -930,81 +776,51 @@ func (g *TestRunnerGroup) GenerateComparisonReport() {
 	}
 	
 	if hasMetrics {
-		report.WriteString("\n3. Prometheus Metrics Comparison:\n")
+		// Print summary of TSO request comparison
+		report.WriteString("\n4. TSO Requests Analysis:\n")
 		report.WriteString("--------------------------------------------------------------------------------\n")
 		
-		// Collect all metric types
-		metricTypes := make(map[string]bool)
+		// Calculate average TSO requests for each configuration
+		report.WriteString(fmt.Sprintf("%-25s %-20s %-20s\n", "Configuration", "Avg TSO Requests", "Avg TSO Reqs/sec"))
+		report.WriteString("--------------------------------------------------------------------------------\n")
+		
 		for _, runner := range g.Runners {
+			config := runner.Config
+			
+			splitStatus := "No Split"
+			if config.SplitRegions {
+				splitStatus = fmt.Sprintf("Split(%d)", config.RegionCount)
+			}
+			
+			tsStatus := "Regular"
+			if config.UseFutureTS {
+				tsStatus = fmt.Sprintf("Future(%d)", config.FutureTS)
+			}
+			
+			title := fmt.Sprintf("%s + %s", splitStatus, tsStatus)
+			
+			// Calculate averages
+			var totalTSO, totalDuration float64
+			var count int
+			
 			for _, result := range runner.TestResults {
-				for _, diff := range result.MetricsDiffs {
-					metricTypes[diff.Type] = true
+				if result.TSORequests > 0 {
+					totalTSO += result.TSORequests
+					totalDuration += result.Duration
+					count++
 				}
+			}
+			
+			if count > 0 {
+				avgTSO := totalTSO / float64(count)
+				avgTSORate := totalTSO / totalDuration
+				report.WriteString(fmt.Sprintf("%-25s %-20.0f %-20.2f\n", title, avgTSO, avgTSORate))
+			} else {
+				report.WriteString(fmt.Sprintf("%-25s %-20s %-20s\n", title, "N/A", "N/A"))
 			}
 		}
 		
-		// Skip this section if no metrics found
-		if len(metricTypes) == 0 {
-			report.WriteString("No Prometheus metrics available for comparison\n")
-			report.WriteString("--------------------------------------------------------------------------------\n")
-		} else {
-			// Convert to sorted slice
-			var types []string
-			for t := range metricTypes {
-				types = append(types, t)
-			}
-			sort.Strings(types)
-			
-			// Print header for average values
-			report.WriteString(fmt.Sprintf("%-15s ", "Metric Type"))
-			for _, runner := range g.Runners {
-				config := runner.Config
-				splitStatus := "No Split"
-				if config.SplitRegions {
-					splitStatus = fmt.Sprintf("Split(%d)", config.RegionCount)
-				}
-				
-				tsStatus := "Regular"
-				if config.UseFutureTS {
-					tsStatus = fmt.Sprintf("Future(%d)", config.FutureTS)
-				}
-				
-				title := fmt.Sprintf("%s,%s", splitStatus, tsStatus)
-				report.WriteString(fmt.Sprintf("%-20s ", title))
-			}
-			report.WriteString("\n")
-			report.WriteString("--------------------------------------------------------------------------------\n")
-			
-			// For each metric type, calculate the average for each runner
-			for _, metricType := range types {
-				report.WriteString(fmt.Sprintf("%-15s ", metricType))
-				
-				for _, runner := range g.Runners {
-					var sumBefore, sumAfter, sumChange float64
-					var count int
-					
-					for _, result := range runner.TestResults {
-						for _, diff := range result.MetricsDiffs {
-							if diff.Type == metricType {
-								sumBefore += diff.Before
-								sumAfter += diff.After
-								sumChange += diff.PercentChange
-								count++
-							}
-						}
-					}
-					
-					if count > 0 {
-						avgChange := sumChange / float64(count)
-						report.WriteString(fmt.Sprintf("%-20.2f%% ", avgChange))
-					} else {
-						report.WriteString(fmt.Sprintf("%-20s ", "N/A"))
-					}
-				}
-				report.WriteString("\n")
-			}
-			report.WriteString("--------------------------------------------------------------------------------\n")
-		}
+		report.WriteString("--------------------------------------------------------------------------------\n")
 	}
 
 	report.WriteString("\nSummary of Findings:\n")
@@ -1128,6 +944,73 @@ func parseConcurrencyLevels(s string) ([]int, error) {
 	return result, nil
 }
 
+// queryPrometheusCounter queries the Prometheus server and returns the raw counter value
+func (t *TestRunner) queryPrometheusCounter() (float64, error) {
+	if !t.Config.CollectMetrics {
+		return 0, nil
+	}
+
+	// Check if Prometheus address is provided
+	if t.Config.PrometheusAddr == "" {
+		return 0, fmt.Errorf("Prometheus address not provided")
+	}
+
+	// Query the raw counter value directly
+	query := `sum(pd_client_request_handle_requests_duration_seconds_count{type="tso"})`
+
+	// Build Prometheus API query URL
+	queryURL := fmt.Sprintf("http://%s:%d/api/v1/query?query=%s",
+		t.Config.PrometheusAddr, t.Config.PrometheusPort, url.QueryEscape(query))
+
+	// Make HTTP request
+	resp, err := http.Get(queryURL)
+	if err != nil {
+		return 0, fmt.Errorf("failed to query Prometheus: %v", err)
+	}
+	defer resp.Body.Close()
+
+	// Read response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, fmt.Errorf("failed to read Prometheus response: %v", err)
+	}
+
+	// Parse JSON response
+	var promResp struct {
+		Status string `json:"status"`
+		Data   struct {
+			ResultType string `json:"resultType"`
+			Result     []struct {
+				Metric map[string]string `json:"metric"`
+				Value  []interface{}     `json:"value"`
+			} `json:"result"`
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(body, &promResp); err != nil {
+		return 0, fmt.Errorf("failed to parse Prometheus response: %v", err)
+	}
+
+	// Check if response is successful
+	if promResp.Status != "success" {
+		return 0, fmt.Errorf("Prometheus query failed with status: %s", promResp.Status)
+	}
+
+	// Extract counter value
+	if len(promResp.Data.Result) == 0 {
+		return 0, fmt.Errorf("no results returned for counter query")
+	}
+
+	// Extract timestamp and value
+	valueStr := promResp.Data.Result[0].Value[1].(string)
+	value, err := strconv.ParseFloat(valueStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse metric value: %v", err)
+	}
+
+	return value, nil
+}
+
 func main() {
 	// Parse command line arguments
 	host := flag.String("host", "127.0.0.1", "TiDB host")
@@ -1157,17 +1040,20 @@ func main() {
 	if *showHelp {
 		fmt.Println("\nPrometheus Metrics Collection Help:")
 		fmt.Println("====================================")
-		fmt.Println("This tool can collect TSO handling metrics from Prometheus to analyze")
+		fmt.Println("This tool collects TSO handling metrics from Prometheus to analyze")
 		fmt.Println("how different test configurations affect PD's timestamp oracle (TSO).")
 		fmt.Println("\nTo enable metrics collection, use the following flags:")
-		fmt.Println("  -collect-metrics      : Enable metrics collection (default: false)")
+		fmt.Println("  -collect-metrics      : Enable metrics collection (default: true)")
 		fmt.Println("  -prometheus-addr      : Prometheus server address (required)")
 		fmt.Println("  -prometheus-port      : Prometheus server port (default: 9090)")
 		fmt.Println("\nExample:")
 		fmt.Println("  ./tidb_future_ts -collect-metrics -prometheus-addr=\"10.0.0.1\"")
 		fmt.Println("\nMetrics collected:")
-		fmt.Println("  sum(rate(pd_client_request_handle_requests_duration_seconds_count{type=\"tso\"}[1m]))")
-		fmt.Println("\nThis will collect and compare TSO handling metrics before and after each test run.")
+		fmt.Println("  sum(pd_client_request_handle_requests_duration_seconds_count{type=\"tso\"})")
+		fmt.Println("\nThis tool uses the counter difference method to calculate TSO requests.")
+		fmt.Println("It queries the raw counter value before and after each test run,")
+		fmt.Println("then calculates the difference to determine the exact number of TSO")
+		fmt.Println("requests that occurred during the test period.")
 		fmt.Println("====================================")
 		os.Exit(0)
 	}
