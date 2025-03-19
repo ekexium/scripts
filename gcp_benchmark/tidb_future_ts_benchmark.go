@@ -155,7 +155,7 @@ func (t *TestRunner) SetupTable() error {
 
 	// Insert test data
 	fmt.Printf("Inserting %d rows of test data...\n", t.Config.Rows)
-	batchSize := 5000
+	batchSize := 10000
 	progressStep := t.Config.Rows / 20
 	if progressStep < 1 {
 		progressStep = 1
@@ -1103,13 +1103,6 @@ func main() {
 		CollectMetrics:    *collectMetrics,
 	}
 
-	// Ask about table setup
-	var setupTable bool
-	var setup string
-	fmt.Print("Re-create test table (y/n)? [y]: ")
-	fmt.Scanln(&setup)
-	setupTable = setup == "" || setup == "y" || setup == "Y"
-
 	// Create a test runner group to collect all runners
 	runnerGroup := NewTestRunnerGroup()
 	
@@ -1141,11 +1134,10 @@ func main() {
 				log.Fatalf("Failed to connect to database: %v", err)
 			}
 
-			// Only setup the table for the first test combination and if requested
-			if i == 0 && setupTable {
-				if err := runner.SetupTable(); err != nil {
-					log.Fatalf("Failed to setup table: %v", err)
-				}
+			// Always setup the table for each test combination to ensure proper region configuration
+			fmt.Printf("Setting up new table for test combination %d...\n", i+1)
+			if err := runner.SetupTable(); err != nil {
+				log.Fatalf("Failed to setup table: %v", err)
 			}
 
 			// For individual test runs, don't generate the reports to file
@@ -1181,10 +1173,10 @@ func main() {
 		}
 		defer runner.Close()
 
-		if setupTable {
-			if err := runner.SetupTable(); err != nil {
-				log.Fatalf("Failed to setup table: %v", err)
-			}
+		// Always setup the table before running tests
+		fmt.Println("Setting up test table...")
+		if err := runner.SetupTable(); err != nil {
+			log.Fatalf("Failed to setup table: %v", err)
 		}
 
 		// For single configuration, run all tests and generate the report
