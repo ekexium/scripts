@@ -112,7 +112,7 @@ func (t *TestRunner) Connect() error {
 	}
 
 	// Configure connection pool
-	t.DB.SetMaxOpenConns(200) // Adjust based on your system capacity
+	t.DB.SetMaxOpenConns(65536) // Adjust based on your system capacity
 	t.DB.SetMaxIdleConns(100)
 	t.DB.SetConnMaxLifetime(time.Hour)
 

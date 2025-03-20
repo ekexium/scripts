@@ -1,7 +1,5 @@
 #!/bin/bash
 
-./gcp_setup.sh -v nightly -n nightly
-
 curl https://sh.rustup.rs -sSf | sh -s -- -y
 . "$HOME/.cargo/env"
 
@@ -16,11 +14,11 @@ source ~/.gvm/scripts/gvm
 gvm install go1.23.5 -B
 gvm use go1.23.5
 
-cd ~
-git clone https://github.com/ekexium/tidb.git
-cd tidb
-git checkout variable-pessimistic-autocommit
-make server
-cd bin
-tar czvf tidb-server.tar.gz tidb-server
-tiup cluster patch nightly tidb-server.tar.gz -R tidb -y
+# cd ~
+# git clone https://github.com/ekexium/tidb.git
+# cd tidb
+# git checkout variable-pessimistic-autocommit
+# make server
+# cd bin
+# tar czvf tidb-server.tar.gz tidb-server
+# tiup cluster patch nightly tidb-server.tar.gz -R tidb -y
