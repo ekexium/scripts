@@ -280,7 +280,7 @@ def main():
                 "--kv.config", config_file,
                 "--db", "1", "--pd", "1", "--kv", "1", "--tiflash", "0",
                 "--db.port", str(TIDB_PORT),
-                # "--without-monitor" # Uncomment if needed
+                "--without-monitor"
             ])
             if args.kv_binpath:
                  # Check if binpath exists
