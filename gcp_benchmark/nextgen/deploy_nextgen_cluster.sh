@@ -31,7 +31,7 @@ usage() {
 check_file_exists() {
     local file=$1
     local description=$2
-    
+
     if [[ ! -f "$file" ]]; then
         echo "Error: $description not found at: $file"
         echo "Please ensure the file exists or use appropriate flag to specify location"
@@ -43,7 +43,7 @@ check_file_exists() {
 # Function to generate next-gen cluster config
 generate_nextgen_config() {
     echo "=== Generating Next-Gen Cluster Configuration ==="
-    
+
     # Define server names based on cluster name (following GCP naming pattern)
     local MONITORING_SERVER="${CLUSTER_NAME}-load"
     local GRAFANA_SERVER="${CLUSTER_NAME}-load"
@@ -51,13 +51,13 @@ generate_nextgen_config() {
     local TIKV_SERVERS="${CLUSTER_NAME}-tikv-0,${CLUSTER_NAME}-tikv-1,${CLUSTER_NAME}-tikv-2"
     local TIDB_SERVER="${CLUSTER_NAME}-tidb-0"
     local MINIO_SERVER="${CLUSTER_NAME}-minio"
-    
+
     echo "Generating cluster topology..."
     echo "PD Server: $PD_SERVER"
     echo "TiKV Servers: $TIKV_SERVERS"
     echo "TiDB Server: $TIDB_SERVER"
     echo "MinIO Server: $MINIO_SERVER"
-    
+
     # Generate base config with tiup cluster template
     tiup cluster template \
         --local \
@@ -68,7 +68,7 @@ generate_nextgen_config() {
         --pd-servers "$PD_SERVER" \
         --tikv-servers "$TIKV_SERVERS" \
         --tidb-servers "$TIDB_SERVER" > /tmp/cluster-base.yaml
-    
+
     # Add next-gen specific configurations
     cat > "$CONFIG_FILE" << EOF
 # Next-Gen TiDB Cluster Configuration
@@ -123,12 +123,12 @@ EOF
 # Function to verify MinIO is accessible (simple check)
 check_minio_status() {
     local minio_endpoint=$(grep "s3-endpoint" "$CONFIG_FILE" | cut -d'"' -f2 | head -1)
-    
+
     if [[ -z "$minio_endpoint" ]]; then
         echo "No MinIO endpoint configured - skipping check"
         return 0
     fi
-    
+
     echo "MinIO endpoint: $minio_endpoint"
     if curl -s --max-time 5 "$minio_endpoint" > /dev/null; then
         echo "✓ MinIO is accessible"
@@ -237,19 +237,19 @@ tiup cluster deploy "$CLUSTER_NAME" "$VERSION" "$CONFIG_FILE" --ignore-config-ch
 if [[ "$SKIP_PATCHES" == false ]]; then
     echo ""
     echo "=== Step 2: Patching Binaries ==="
-    
+
     echo "Patching PD..."
-    echo "Command: tiup cluster patch $CLUSTER_NAME $PD_PATCH -R pd --offline"
-    tiup cluster patch "$CLUSTER_NAME" "$PD_PATCH" -R pd --offline
-    
+    echo "Command: tiup cluster patch $CLUSTER_NAME $PD_PATCH -R pd --offline -y"
+    tiup cluster patch "$CLUSTER_NAME" "$PD_PATCH" -R pd --offline -y
+
     echo "Patching TiDB..."
-    echo "Command: tiup cluster patch $CLUSTER_NAME $TIDB_PATCH -R tidb --offline"
-    tiup cluster patch "$CLUSTER_NAME" "$TIDB_PATCH" -R tidb --offline
-    
+    echo "Command: tiup cluster patch $CLUSTER_NAME $TIDB_PATCH -R tidb --offline -y"
+    tiup cluster patch "$CLUSTER_NAME" "$TIDB_PATCH" -R tidb --offline -y
+
     echo "Patching TiKV..."
-    echo "Command: tiup cluster patch $CLUSTER_NAME $TIKV_PATCH -R tikv --offline"
-    tiup cluster patch "$CLUSTER_NAME" "$TIKV_PATCH" -R tikv --offline
-    
+    echo "Command: tiup cluster patch $CLUSTER_NAME $TIKV_PATCH -R tikv --offline -y"
+    tiup cluster patch "$CLUSTER_NAME" "$TIKV_PATCH" -R tikv --offline -y
+
     echo "✓ All binaries patched successfully"
 else
     echo ""
@@ -262,14 +262,14 @@ if [[ "$SKIP_START" == false ]]; then
     echo "=== Step 3: Starting Cluster ==="
     echo "Command: tiup cluster start $CLUSTER_NAME"
     tiup cluster start "$CLUSTER_NAME"
-    
+
     echo ""
     echo "=== Cluster Status ==="
     tiup cluster display "$CLUSTER_NAME"
-    
+
     # Check MinIO status (optional)
     check_minio_status
-    
+
     echo ""
     echo "🎉 Next-Gen TiDB cluster '$CLUSTER_NAME' deployed and started successfully!"
     echo ""
