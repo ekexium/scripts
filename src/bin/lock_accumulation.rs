@@ -44,15 +44,43 @@ async fn main() -> Result<()> {
 
     let pool = MySqlPoolOptions::new()
         .max_connections(args.threads + 5)
+        .acquire_timeout(Duration::from_secs(10))
         .connect(&args.url)
-        .await?;
+        .await
+        .map_err(|e| {
+            eprintln!("Failed to connect to database: {}", e);
+            eprintln!(
+                "Please check if the database is accessible at: {}",
+                args.url
+            );
+            e
+        })?;
 
     // Setup table if needed
-    let mut conn = pool.acquire().await?;
-    let _ = conn
+    let mut conn = pool.acquire().await.map_err(|e| {
+        eprintln!("Failed to acquire connection from pool: {}", e);
+        e
+    })?;
+
+    if let Err(e) = conn
         .execute("create table if not exists t (id int primary key, v int)")
-        .await;
-    let _ = conn.execute("insert ignore into t values (1, 0)").await;
+        .await
+    {
+        eprintln!("Warning: Failed to create table: {}", e);
+    }
+
+    if let Err(e) = conn.execute("insert ignore into t values (1, 0)").await {
+        eprintln!("Warning: Failed to insert initial row: {}", e);
+    }
+
+    // Validate connection with a simple query
+    match conn.execute("SELECT 1").await {
+        Ok(_) => println!("Database connection validated successfully"),
+        Err(e) => {
+            eprintln!("Failed to validate database connection: {}", e);
+            return Err(e.into());
+        }
+    }
     drop(conn);
 
     let counter = Arc::new(AtomicU64::new(0));
@@ -64,8 +92,13 @@ async fn main() -> Result<()> {
         let counter_clone = counter.clone();
 
         handles.push(tokio::spawn(async move {
-            if let Ok(conn) = pool_clone.acquire().await {
-                worker(thread_id, conn, counter_clone, args.duration).await;
+            match pool_clone.acquire().await {
+                Ok(conn) => {
+                    worker(thread_id, conn, counter_clone, args.duration).await;
+                }
+                Err(e) => {
+                    eprintln!("Thread {}: Failed to acquire connection: {}", thread_id, e);
+                }
             }
         }));
     }
