@@ -215,9 +215,11 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
                 if original_pr.merged and original_pr.merge_commit_sha:
                     try:
                         # Check if the merge commit exists in target branch
+                        # Compare: target_branch...merge_commit_sha
+                        # If ahead_by is 0, target branch has no commits not in merge_commit
+                        # This means merge_commit is an ancestor (already in branch)
                         compare = repo.compare(target_branch, original_pr.merge_commit_sha)
-                        # If behind_by is 0, the commit is already in target branch
-                        if compare.behind_by == 0:
+                        if compare.ahead_by == 0:
                             result[original_pr.number] = 'ALREADY_IN_BRANCH'
                         else:
                             result[original_pr.number] = None
