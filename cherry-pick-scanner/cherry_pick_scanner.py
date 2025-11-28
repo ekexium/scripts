@@ -78,6 +78,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
         config.setdefault('github_token_env', 'GITHUB_TOKEN')
         config.setdefault('lookback_days', 30)
         config.setdefault('output_file', 'report.html')
+        config.setdefault('pr_scan_limit', 2000)  # Maximum PRs to scan per repo
 
         return config
 
@@ -96,7 +97,7 @@ def load_config(config_path: str) -> Dict[str, Any]:
 # CORE LOGIC
 # ============================================================================
 
-def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: datetime) -> List[Any]:
+def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: datetime, pr_scan_limit: int = 2000) -> List[Any]:
     """
     Fetch relevant PRs from a repository (both merged and recently updated open PRs).
 
@@ -105,6 +106,7 @@ def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: dat
         base_branch: Base branch to filter PRs
         authors: List of author usernames to filter (case-insensitive)
         since_date: Only include PRs updated after this date
+        pr_scan_limit: Maximum number of PRs to scan (default 2000)
 
     Returns:
         List of PR objects
@@ -117,7 +119,7 @@ def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: dat
     relevant_prs = []
     try:
         # Strategy: Fetch PRs sorted by update time, process both open and closed
-        # This is more efficient than separate queries
+        # Use per_page=100 to reduce API calls (max allowed by GitHub)
         pulls = repo.get_pulls(
             state='all',  # Get both open and closed
             base=base_branch,
@@ -127,6 +129,7 @@ def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: dat
 
         # Filter for relevant PRs by specified authors within the date range
         count = 0
+        page_count = 0
         for pr in pulls:
             # Stop if we've gone too far back in time
             if pr.updated_at < since_date:
@@ -141,10 +144,16 @@ def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: dat
                     relevant_prs.append(pr)
 
             count += 1
-            # Safety limit to avoid scanning too many PRs
-            if count >= 500:
-                print(f"    (Reached safety limit of 500 PRs)")
+            # Use configurable safety limit for large repos like TiDB
+            # At 100 per page, 2000 = 20 API calls, 5000 = 50 API calls
+            if count >= pr_scan_limit:
+                print(f"    (Reached safety limit of {pr_scan_limit} PRs)")
                 break
+
+            # Progress indicator for large repos
+            if count % 100 == 0 and count > 0:
+                page_count += 1
+                print(f"    (Scanned {count} PRs, found {len(relevant_prs)} relevant...)")
 
         print(f"    Found {len(relevant_prs)} relevant PRs (scanned {count} total)")
 
@@ -202,6 +211,9 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
 
         # Now match original PRs to their backports
         print(f"    Checking if commits are already in {target_branch}...")
+        checked_count = 0
+        in_branch_count = 0
+
         for original_pr in original_prs:
             if original_pr.number in backport_map:
                 candidates = backport_map[original_pr.number]
@@ -219,15 +231,27 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
                         # If ahead_by is 0, target branch has no commits not in merge_commit
                         # This means merge_commit is an ancestor (already in branch)
                         compare = repo.compare(target_branch, original_pr.merge_commit_sha)
+                        checked_count += 1
                         if compare.ahead_by == 0:
                             result[original_pr.number] = 'ALREADY_IN_BRANCH'
+                            in_branch_count += 1
                         else:
                             result[original_pr.number] = None
-                    except:
+
+                        # Progress indicator for large number of comparisons
+                        if checked_count % 10 == 0:
+                            print(f"    (Checked {checked_count} commits, found {in_branch_count} already in branch...)")
+                    except Exception as e:
                         # If comparison fails, assume not in branch
+                        # Log error for debugging but continue
+                        if checked_count == 0:  # Only log first error to avoid spam
+                            print(f"    (Commit comparison error: {e})")
                         result[original_pr.number] = None
                 else:
                     result[original_pr.number] = None
+
+        if checked_count > 0:
+            print(f"    Completed {checked_count} commit comparisons, {in_branch_count} already in branch")
 
     except GithubException as e:
         print(f"    WARNING: Error fetching backport PRs: {e}")
@@ -321,7 +345,7 @@ def determine_status(backport_pr: Any) -> str:
     return 'CLOSED'
 
 
-def scan_repository(g: Github, repo_config: Dict[str, Any], authors: List[str], since_date: datetime) -> List[Dict]:
+def scan_repository(g: Github, repo_config: Dict[str, Any], authors: List[str], since_date: datetime, pr_scan_limit: int = 2000) -> List[Dict]:
     """
     Scan a single repository for cherry-pick status.
 
@@ -330,6 +354,7 @@ def scan_repository(g: Github, repo_config: Dict[str, Any], authors: List[str], 
         repo_config: Repository configuration dict
         authors: List of author usernames
         since_date: Date threshold for PRs
+        pr_scan_limit: Maximum number of PRs to scan per repository
 
     Returns:
         List of result dictionaries
@@ -346,7 +371,7 @@ def scan_repository(g: Github, repo_config: Dict[str, Any], authors: List[str], 
         repo = g.get_repo(repo_name)
 
         # Get relevant PRs from base branch (merged + recently updated open PRs)
-        relevant_prs = get_relevant_prs(repo, base_branch, authors, since_date)
+        relevant_prs = get_relevant_prs(repo, base_branch, authors, since_date, pr_scan_limit)
 
         if not relevant_prs:
             print(f"  No relevant PRs found in the specified time range")
@@ -1069,6 +1094,7 @@ Configuration file format (JSON):
     output_file = config['output_file']
     authors = config['authors']
     repositories = config['repositories']
+    pr_scan_limit = config['pr_scan_limit']
 
     # Get GitHub token (try gh CLI first, then environment variable)
     print(f"\nObtaining GitHub token...")
@@ -1116,11 +1142,12 @@ Configuration file format (JSON):
     since_date = datetime.now(timezone.utc) - timedelta(days=lookback_days)
     print(f"\nScanning PRs merged since: {since_date.strftime('%Y-%m-%d')}")
     print(f"Tracking authors: {', '.join(authors)}")
+    print(f"PR scan limit per repo: {pr_scan_limit}")
 
     # Scan all repositories
     all_results = []
     for repo_config in repositories:
-        results = scan_repository(g, repo_config, authors, since_date)
+        results = scan_repository(g, repo_config, authors, since_date, pr_scan_limit)
         all_results.extend(results)
 
     # Generate HTML report

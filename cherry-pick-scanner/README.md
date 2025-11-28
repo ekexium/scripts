@@ -68,6 +68,7 @@ Then edit `config.json`:
   "github_token_env": "GITHUB_TOKEN",
   "lookback_days": 30,
   "output_file": "report.html",
+  "pr_scan_limit": 5000,
   "authors": [
     "you16",
     "cfzjywxk"
@@ -97,6 +98,7 @@ Then edit `config.json`:
 - **`github_token_env`** (optional, default: `"GITHUB_TOKEN"`): Name of environment variable containing GitHub token
 - **`lookback_days`** (optional, default: `30`): Number of days to look back for merged PRs
 - **`output_file`** (optional, default: `"report.html"`): Output HTML file path
+- **`pr_scan_limit`** (optional, default: `2000`): Maximum number of PRs to scan per repository (increase for large repos like TiDB)
 - **`authors`** (required): List of GitHub usernames to track (case-insensitive)
 - **`repositories`** (required): List of repository configurations
   - **`name`**: Repository in format `owner/repo`
@@ -206,7 +208,16 @@ This ensures you don't miss cherry-picks for PRs that are in progress or just me
 The scanner uses several techniques to run fast:
 - **Batch fetching**: Gets all backport PRs for a branch in one API call, then matches locally
 - **Early termination**: Stops scanning when PRs are too old
-- **Safety limits**: Maximum 500 PRs per repository scan
+- **Configurable safety limits**: Use `pr_scan_limit` to control max PRs scanned per repo (default: 2000)
+- **Progress indicators**: Shows scanning progress for large repositories
+
+For large repos like TiDB, increase the `pr_scan_limit` in config.json:
+```json
+{
+  "pr_scan_limit": 5000,  // Scan up to 5000 PRs (50 API calls)
+  ...
+}
+```
 
 For a typical scenario (4 repos, 3 target branches, 20 PRs each), the scanner makes ~16 API calls instead of ~248 (15x reduction!).
 
