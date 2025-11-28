@@ -154,9 +154,10 @@ def get_relevant_prs(repo, base_branch: str, authors: List[str], since_date: dat
     return relevant_prs
 
 
-def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_branch: str) -> Dict[int, Optional[Any]]:
+def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_branch: str) -> Dict[int, Any]:
     """
     Search for backport PRs in batch (more efficient than individual searches).
+    Also checks if commits are already in target branch (rebase case).
 
     Args:
         g: Github client instance
@@ -165,7 +166,10 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
         target_branch: Target branch for the backports
 
     Returns:
-        Dictionary mapping original PR number to backport PR (or None)
+        Dictionary mapping original PR number to:
+        - Backport PR object, OR
+        - 'ALREADY_IN_BRANCH' string if commit is already in target branch, OR
+        - None if missing
     """
     result = {}
 
@@ -197,6 +201,7 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
                 backport_map[num].append(backport_pr)
 
         # Now match original PRs to their backports
+        print(f"    Checking if commits are already in {target_branch}...")
         for original_pr in original_prs:
             if original_pr.number in backport_map:
                 candidates = backport_map[original_pr.number]
@@ -205,7 +210,22 @@ def find_backport_prs_batch(g: Github, repo, original_prs: List[Any], target_bra
                     candidates.sort(key=lambda x: x.created_at, reverse=True)
                 result[original_pr.number] = candidates[0]
             else:
-                result[original_pr.number] = None
+                # Check if commit is already in target branch (rebase case)
+                # Only check for merged PRs
+                if original_pr.merged and original_pr.merge_commit_sha:
+                    try:
+                        # Check if the merge commit exists in target branch
+                        compare = repo.compare(target_branch, original_pr.merge_commit_sha)
+                        # If behind_by is 0, the commit is already in target branch
+                        if compare.behind_by == 0:
+                            result[original_pr.number] = 'ALREADY_IN_BRANCH'
+                        else:
+                            result[original_pr.number] = None
+                    except:
+                        # If comparison fails, assume not in branch
+                        result[original_pr.number] = None
+                else:
+                    result[original_pr.number] = None
 
     except GithubException as e:
         print(f"    WARNING: Error fetching backport PRs: {e}")
@@ -253,16 +273,20 @@ def find_backport_pr_single(g: Github, repo, original_pr_number: int, target_bra
         return None
 
 
-def determine_status(backport_pr: Optional[Any]) -> str:
+def determine_status(backport_pr: Any) -> str:
     """
-    Determine the status of a backport based on the PR state.
+    Determine the status of a backport based on the PR state or special markers.
 
     Args:
-        backport_pr: PR object or None
+        backport_pr: PR object, 'ALREADY_IN_BRANCH' string, or None
 
     Returns:
-        Status string: MISSING, PENDING, MERGED, or CLOSED
+        Status string: IN_BRANCH, MISSING, PENDING, MERGED, or CLOSED
     """
+    # Special case: commit already in target branch (rebase case)
+    if backport_pr == 'ALREADY_IN_BRANCH':
+        return 'IN_BRANCH'
+
     if backport_pr is None:
         return 'MISSING'
 
@@ -357,8 +381,8 @@ def scan_repository(g: Github, repo_config: Dict[str, Any], authors: List[str], 
                     'backport_pr': None
                 }
 
-                # Add backport PR info if exists
-                if backport_pr:
+                # Add backport PR info if exists (and is not special marker)
+                if backport_pr and backport_pr != 'ALREADY_IN_BRANCH':
                     result['backport_pr'] = {
                         'number': backport_pr.number,
                         'title': backport_pr.title,
@@ -414,9 +438,9 @@ def generate_markdown_report(results: List[Dict], output_path: str, lookback_day
     # Summary
     md_lines.append("## Summary")
     md_lines.append("")
-    md_lines.append(f"| Total | Missing | Pending | Merged | Closed |")
-    md_lines.append(f"|-------|---------|---------|--------|--------|")
-    md_lines.append(f"| {stats['total']} | {stats['missing']} | {stats['pending']} | {stats['merged']} | {stats['closed']} |")
+    md_lines.append(f"| Total | Missing | Pending | Merged | In Branch | Closed |")
+    md_lines.append(f"|-------|---------|---------|--------|-----------|--------|")
+    md_lines.append(f"| {stats['total']} | {stats['missing']} | {stats['pending']} | {stats['merged']} | {stats['in_branch']} | {stats['closed']} |")
     md_lines.append("")
 
     if not results:
@@ -432,12 +456,18 @@ def generate_markdown_report(results: List[Dict], output_path: str, lookback_day
             author = result['author']
             repo = result['repo']
 
-            # Original PR
+            # Original PR - simple format without line breaks
             orig_pr_num = result['original_pr']['number']
             orig_pr_url = result['original_pr']['url']
             orig_pr_title = result['original_pr']['title'].replace('|', '\\|')  # Escape pipes
             orig_pr_state = result['original_pr']['state'].upper()
-            orig_pr = f"[#{orig_pr_num}]({orig_pr_url}) `{orig_pr_state}`<br/>{orig_pr_title}"
+
+            # Truncate title if too long
+            max_title_len = 50
+            if len(orig_pr_title) > max_title_len:
+                orig_pr_title = orig_pr_title[:max_title_len] + '...'
+
+            orig_pr = f"[#{orig_pr_num}]({orig_pr_url}) `{orig_pr_state}` {orig_pr_title}"
 
             # Target branch
             target = f"`{result['target_branch']}`"
@@ -447,17 +477,23 @@ def generate_markdown_report(results: List[Dict], output_path: str, lookback_day
                 'MISSING': '🔴',
                 'PENDING': '🟡',
                 'MERGED': '🟢',
+                'IN_BRANCH': '🔵',
                 'CLOSED': '⚫'
             }
             status = f"{status_emoji.get(result['status'], '')} {result['status']}"
 
-            # Backport PR
+            # Backport PR - simple format without line breaks
             if result['backport_pr']:
                 bp_num = result['backport_pr']['number']
                 bp_url = result['backport_pr']['url']
                 bp_title = result['backport_pr']['title'].replace('|', '\\|')
                 bp_state = result['backport_pr']['state'].upper()
-                backport = f"[#{bp_num}]({bp_url}) `{bp_state}`<br/>{bp_title}"
+
+                # Truncate title if too long
+                if len(bp_title) > max_title_len:
+                    bp_title = bp_title[:max_title_len] + '...'
+
+                backport = f"[#{bp_num}]({bp_url}) `{bp_state}` {bp_title}"
             else:
                 backport = "—"
 
@@ -471,6 +507,7 @@ def generate_markdown_report(results: List[Dict], output_path: str, lookback_day
         md_lines.append("- 🔴 **MISSING**: No backport PR found (needs action!)")
         md_lines.append("- 🟡 **PENDING**: Backport PR is open (needs review/merge)")
         md_lines.append("- 🟢 **MERGED**: Backport PR successfully merged")
+        md_lines.append("- 🔵 **IN_BRANCH**: Commit already in target branch (rebased)")
         md_lines.append("- ⚫ **CLOSED**: Backport PR closed without merge")
 
     # Write to file
@@ -721,6 +758,11 @@ HTML_TEMPLATE = """
             color: white;
         }
 
+        .status-in_branch {
+            background-color: #17a2b8;
+            color: white;
+        }
+
         .status-closed {
             background-color: #6c757d;
             color: white;
@@ -807,6 +849,10 @@ HTML_TEMPLATE = """
                 <div class="value">{{ stats.merged }}</div>
             </div>
             <div class="summary-card">
+                <div class="label">In Branch</div>
+                <div class="value">{{ stats.in_branch }}</div>
+            </div>
+            <div class="summary-card">
                 <div class="label">Closed</div>
                 <div class="value">{{ stats.closed }}</div>
             </div>
@@ -885,10 +931,10 @@ def generate_html_report(results: List[Dict], output_path: str, lookback_days: i
     """
     print(f"\nGenerating HTML report...")
 
-    # Sort results by priority: MISSING, PENDING, CLOSED, MERGED
-    priority_order = {'MISSING': 0, 'PENDING': 1, 'CLOSED': 2, 'MERGED': 3}
+    # Sort results by priority: MISSING, PENDING, CLOSED, MERGED, IN_BRANCH
+    priority_order = {'MISSING': 0, 'PENDING': 1, 'CLOSED': 2, 'MERGED': 3, 'IN_BRANCH': 4}
     sorted_results = sorted(results, key=lambda x: (
-        priority_order.get(x['status'], 4),
+        priority_order.get(x['status'], 5),
         x['repo'],
         x['original_pr']['number']
     ))
@@ -899,6 +945,7 @@ def generate_html_report(results: List[Dict], output_path: str, lookback_days: i
         'missing': sum(1 for r in results if r['status'] == 'MISSING'),
         'pending': sum(1 for r in results if r['status'] == 'PENDING'),
         'merged': sum(1 for r in results if r['status'] == 'MERGED'),
+        'in_branch': sum(1 for r in results if r['status'] == 'IN_BRANCH'),
         'closed': sum(1 for r in results if r['status'] == 'CLOSED')
     }
 
@@ -948,6 +995,7 @@ def generate_html_report(results: List[Dict], output_path: str, lookback_days: i
     print(f"  Missing: {stats['missing']}")
     print(f"  Pending: {stats['pending']}")
     print(f"  Merged: {stats['merged']}")
+    print(f"  In Branch: {stats['in_branch']}")
     print(f"  Closed: {stats['closed']}")
 
 

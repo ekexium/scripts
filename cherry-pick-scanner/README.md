@@ -168,6 +168,7 @@ All files use the filename from your config's `output_file` setting.
 - 🔴 **MISSING**: No backport PR found (needs action!)
 - 🟡 **PENDING**: Backport PR is open (needs review/merge)
 - 🟢 **MERGED**: Backport PR successfully merged
+- 🔵 **IN_BRANCH**: Commit already in target branch (rebased)
 - ⚫ **CLOSED**: Backport PR closed without merge
 
 ### Report Sections
@@ -194,8 +195,9 @@ This ensures you don't miss cherry-picks for PRs that are in progress or just me
 2. **Batch Search for Backports**: For each target branch, fetches all backport PRs at once and matches them locally (much faster than individual searches)
    - Matches PRs where title or body contains `#<original_pr_number>`
    - Filters by target branch
+   - Also checks if commits are already in target branch (rebase case)
 
-3. **Determine Status**: Categorizes each backport as MISSING, PENDING, MERGED, or CLOSED
+3. **Determine Status**: Categorizes each backport as MISSING, PENDING, MERGED, IN_BRANCH, or CLOSED
 
 4. **Generate Report**: Creates HTML report with color-coded status indicators
 
