@@ -90,7 +90,6 @@ server_configs:
   tikv:
     storage.api-version: 2
     storage.enable-ttl: true
-    storage.use-separated-scheduler-pool: false
     dfs.prefix: "tikv"
     dfs.s3-endpoint: "http://$MINIO_SERVER:9000"
     dfs.s3-key-id: "minioadmin"
@@ -563,13 +562,6 @@ if [[ "$SKIP_START" == false ]]; then
     echo "3. Check System TiDB: mysql -h ${CLUSTER_NAME}-tidb-system -P 3000 -u root"
     echo "4. Check MinIO console: http://${CLUSTER_NAME}-minio:9001 (admin/minioadmin)"
     echo "5. Run sysbench oltp_read_write tests!"
-    echo ""
-    echo "Testing with different TiKV configs:"
-    echo "  Current config: storage.use_separated_scheduler_pool=false"
-    echo "  To test with =true:"
-    echo "    1. tiup cluster edit-config $CLUSTER_NAME"
-    echo "    2. Change storage.use_separated_scheduler_pool to true"
-    echo "    3. tiup cluster reload $CLUSTER_NAME -R tikv"
 else
     echo ""
     echo "=== Step 3: Skipping Cluster Start ==="
