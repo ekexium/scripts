@@ -348,6 +348,40 @@ START_SCRIPT
     return 0
 }
 
+# Function to configure global-sort on User TiDB keyspace
+configure_global_sort() {
+    echo "=== Configuring Global Sort ==="
+
+    local USER_TIDB_HOST="${CLUSTER_NAME}-tidb-0"
+    local MINIO_HOST="${CLUSTER_NAME}-minio"
+
+    # URL-encode the endpoint: http://HOST:9000 -> http%3a%2f%2fHOST%3a9000
+    local ENCODED_ENDPOINT="http%3a%2f%2f${MINIO_HOST}%3a9000"
+    local CLOUD_STORAGE_URI="s3://cse-test/gsort-tmp?access-key=minioadmin&secret-access-key=minioadmin&endpoint=${ENCODED_ENDPOINT}"
+
+    echo "Setting tidb_cloud_storage_uri on User TiDB ($USER_TIDB_HOST:4000)..."
+    echo "URI: $CLOUD_STORAGE_URI"
+
+    # Wait for User TiDB to be fully ready
+    local retries=10
+    for ((i=1; i<=retries; i++)); do
+        if mysql -h "$USER_TIDB_HOST" -P 4000 -u root -e "SELECT 1" &>/dev/null; then
+            break
+        fi
+        echo "Waiting for User TiDB to be ready... ($i/$retries)"
+        sleep 2
+    done
+
+    # Set the global variable
+    mysql -h "$USER_TIDB_HOST" -P 4000 -u root -e "SET GLOBAL tidb_cloud_storage_uri='${CLOUD_STORAGE_URI}';" && {
+        echo "✓ Global-sort configured successfully"
+        # Verify the setting
+        mysql -h "$USER_TIDB_HOST" -P 4000 -u root -e "SELECT @@tidb_cloud_storage_uri;" 2>/dev/null || true
+    } || {
+        echo "⚠ Warning: Failed to configure global-sort (you can configure it manually later)"
+    }
+}
+
 # Function to start cluster with correct TiDB-X component order
 start_cluster_tidb_x() {
     echo "=== Starting TiDB-X Cluster (Correct Component Order) ==="
@@ -390,6 +424,10 @@ start_cluster_tidb_x() {
     # Step 6: Start monitoring
     echo "Step 6: Starting monitoring and Grafana..."
     tiup cluster start "$CLUSTER_NAME" -R prometheus,grafana || true
+
+    # Step 7: Configure global-sort for User TiDB keyspace
+    echo "Step 7: Configuring global-sort for User TiDB keyspace..."
+    configure_global_sort
 
     echo "✓ TiDB-X cluster started successfully"
 }
@@ -562,6 +600,9 @@ if [[ "$SKIP_START" == false ]]; then
     echo "3. Check System TiDB: mysql -h ${CLUSTER_NAME}-tidb-system -P 3000 -u root"
     echo "4. Check MinIO console: http://${CLUSTER_NAME}-minio:9001 (admin/minioadmin)"
     echo "5. Run sysbench oltp_read_write tests!"
+    echo ""
+    echo "Global-sort is enabled on User TiDB (keyspace1)."
+    echo "To verify: mysql -h ${CLUSTER_NAME}-tidb-0 -P 4000 -u root -e \"SELECT @@tidb_cloud_storage_uri;\""
 else
     echo ""
     echo "=== Step 3: Skipping Cluster Start ==="
