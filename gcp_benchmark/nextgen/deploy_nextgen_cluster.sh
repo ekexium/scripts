@@ -114,7 +114,6 @@ tidb_servers:
       instance.tidb_service_scope: "dxf_service"
       tikv-worker-url: "http://$TIKV_WORKER_SERVER:19000"
       keyspace-name: "SYSTEM"
-      enable-safe-point-v2: true
       split-table: false
       use-autoscaler: false
       disaggregated-tiflash: false
