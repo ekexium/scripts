@@ -171,6 +171,19 @@ local function new_connection()
   return drv:connect()
 end
 
+local function writer_reset_connection(err)
+  print(string.format(
+    "WRITER_ERROR: bulk insert flush failed, reset connection | err=%s",
+    tostring(err)
+  ))
+  if writer_con ~= nil then
+    pcall(function() writer_con:disconnect() end)
+  end
+  writer_con = new_connection()
+  writer_bulk_inited = false
+  writer_pending_rows = 0
+end
+
 function thread_init()
   split_enabled = should_split_in_this_thread()
   split_event_counter = 0
@@ -269,7 +282,11 @@ function event()
 	      ))
 	      writer_pending_rows = writer_pending_rows + 1
 	      if sysbench.opt.writer_flush_every > 0 and writer_pending_rows >= sysbench.opt.writer_flush_every then
-	        writer_con:bulk_insert_done()
+	        local ok_flush, err_flush = pcall(function() writer_con:bulk_insert_done() end)
+	        if not ok_flush then
+	          writer_reset_connection(err_flush)
+	          return
+	        end
 	        writer_con:bulk_insert_init(string.format(
 	          "INSERT INTO %s (k, pad) VALUES",
 	          sysbench.opt.table_name
