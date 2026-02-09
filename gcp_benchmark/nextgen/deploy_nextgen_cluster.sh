@@ -88,16 +88,16 @@ EOF_REMOTE_COP_STRESS
         --tikv-servers "$TIKV_SERVERS" \
         --tidb-servers "$TIDB_SERVER" > /tmp/cluster-base.yaml
 
-	    local small_region_config=""
-	    if [[ "$SMALL_REGION" == true ]]; then
-	        small_region_config=$(cat << 'EOF_SMALL_REGION'
-	    coprocessor.region-bucket-size: "256KiB"
-	    coprocessor.region-split-keys: 100
-	    coprocessor.region-split-size: "1MiB"
+    local small_region_config=""
+    if [[ "$SMALL_REGION" == true ]]; then
+        small_region_config=$(cat << 'EOF_SMALL_REGION'
+    coprocessor.region-bucket-size: "256KiB"
+    coprocessor.region-split-keys: 100
+    coprocessor.region-split-size: "1MiB"
 EOF_SMALL_REGION
 )
-	        echo "Small region mode: enabled"
-	    fi
+        echo "Small region mode: enabled"
+    fi
 
     # Add next-gen specific configurations for TiDB-X mode
     cat > "$CONFIG_FILE" << EOF
