@@ -5,7 +5,7 @@ set -e
 
 # Function to display usage information
 usage() {
-    echo "Usage: $0 [-n NAME] [-v VERSION] [-p PD_PATCH] [-d TIDB_PATCH] [-k TIKV_PATCH] [-w TIKV_WORKER_PATCH] [--skip-patches]"
+    echo "Usage: $0 [-n NAME] [-v VERSION] [-p PD_PATCH] [-d TIDB_PATCH] [-k TIKV_PATCH] [-w TIKV_WORKER_PATCH] [--small-region] [--stress-remote-cop] [--skip-patches]"
     echo ""
     echo "Deploy TiDB-X (Next-Gen) cluster with binary patching for GCP instances"
     echo "Automatically generates cluster config based on GCP instance naming pattern."
@@ -17,6 +17,8 @@ usage() {
     echo "  -d, --tidb-patch        Path to TiDB tarball (default: /tmp/tidb.tar.gz)"
     echo "  -k, --tikv-patch        Path to TiKV tarball (default: /tmp/tikv.tar.gz)"
     echo "  -w, --tikv-worker-patch Path to TiKV Worker tarball (default: /tmp/tikv-worker.tar.gz)"
+    echo "  --small-region          Enable smaller TiKV region split settings"
+    echo "  --stress-remote-cop     Use aggressive thresholds to maximize remote cop hit rate"
     echo "  --skip-patches          Skip binary patching step"
     echo "  --skip-start            Deploy and patch only, don't start cluster"
     echo "  -h, --help              Display this help message"
@@ -24,6 +26,8 @@ usage() {
     echo "Examples:"
     echo "  $0 -n test-nextgen -v v8.5.0"
     echo "  $0 -n my-cluster --skip-patches"
+    echo "  $0 -n test-nextgen --small-region"
+    echo "  $0 -n bench --stress-remote-cop"
     echo "  $0 -n test --pd-patch /custom/path/pd.tar.gz --tikv-worker-patch /custom/path/tikv-worker.tar.gz"
     exit 1
 }
@@ -54,6 +58,16 @@ generate_nextgen_config() {
     local TIDB_SERVER="${CLUSTER_NAME}-tidb-0"
     local TIKV_WORKER_SERVER="${CLUSTER_NAME}-tikv-worker"
     local MINIO_SERVER="${CLUSTER_NAME}-minio"
+    local TIKV_WORKER_COP_URL="http://$TIKV_WORKER_SERVER:19000/coprocessor"
+    local remote_cop_threshold_config=""
+
+    if [[ "$STRESS_REMOTE_COP" == true ]]; then
+        remote_cop_threshold_config=$(cat << 'EOF_REMOTE_COP_STRESS'
+    kvengine.remote-coprocessor-min-blocks-size: 1
+    kvengine.remote-coprocessor-num-ranges: 1
+EOF_REMOTE_COP_STRESS
+)
+    fi
 
     echo "Generating cluster topology..."
     echo "PD Server: $PD_SERVER"
@@ -74,6 +88,16 @@ generate_nextgen_config() {
         --tikv-servers "$TIKV_SERVERS" \
         --tidb-servers "$TIDB_SERVER" > /tmp/cluster-base.yaml
 
+    local small_region_config=""
+    if [[ "$SMALL_REGION" == true ]]; then
+        small_region_config=$(cat << 'EOF_SMALL_REGION'
+    coprocessor.region-split-keys: 100
+    coprocessor.region-split-size: "1MiB"
+EOF_SMALL_REGION
+)
+        echo "Small region mode: enabled"
+    fi
+
     # Add next-gen specific configurations for TiDB-X mode
     cat > "$CONFIG_FILE" << EOF
 # TiDB-X (Next-Gen) Cluster Configuration
@@ -90,12 +114,17 @@ server_configs:
   tikv:
     storage.api-version: 2
     storage.enable-ttl: true
+    coprocessor.enable-region-bucket: true
+    kvengine.remote-worker-addr: "$TIKV_WORKER_COP_URL"
+    kvengine.remote-coprocessor-addr: "$TIKV_WORKER_COP_URL"
+$remote_cop_threshold_config
     dfs.prefix: "tikv"
     dfs.s3-endpoint: "http://$MINIO_SERVER:9000"
     dfs.s3-key-id: "minioadmin"
     dfs.s3-secret-key: "minioadmin"
     dfs.s3-bucket: "cse-test"
     dfs.s3-region: "local"
+$small_region_config
   pd:
     replication.location-labels: ["zone", "host"]
     keyspace.pre-alloc: ["SYSTEM", "keyspace1"]
@@ -124,6 +153,7 @@ tidb_servers:
     status_port: 10081
     config:
       keyspace-name: "keyspace1"
+      tikv-worker-url: "http://$TIKV_WORKER_SERVER:19000"
       enable-safe-point-v2: true
       split-table: false
       use-autoscaler: false
@@ -142,6 +172,17 @@ monitoring_servers:
 grafana_servers:
   - host: $GRAFANA_SERVER
 EOF
+
+    echo "Remote coprocessor offload: enabled"
+    echo "  remote worker URL:       $TIKV_WORKER_COP_URL"
+    if [[ "$STRESS_REMOTE_COP" == true ]]; then
+        echo "  min blocks size (bytes): 1"
+        echo "  num ranges threshold:    1"
+        echo "  mode:                    stress"
+    else
+        echo "  thresholds:              TiKV defaults"
+        echo "  mode:                    normal"
+    fi
 
     echo "✓ Next-Gen cluster config generated: $CONFIG_FILE"
 }
@@ -441,6 +482,8 @@ TIKV_PATCH="/tmp/tikv.tar.gz"
 TIKV_WORKER_PATCH="/tmp/tikv-worker.tar.gz"
 SKIP_PATCHES=false
 SKIP_START=false
+SMALL_REGION=false
+STRESS_REMOTE_COP=false
 
 # Parse command-line arguments
 while [[ "$#" -gt 0 ]]; do
@@ -468,6 +511,14 @@ while [[ "$#" -gt 0 ]]; do
         -w|--tikv-worker-patch)
             TIKV_WORKER_PATCH="$2"
             shift 2
+            ;;
+        --small-region)
+            SMALL_REGION=true
+            shift
+            ;;
+        --stress-remote-cop)
+            STRESS_REMOTE_COP=true
+            shift
             ;;
         --skip-patches)
             SKIP_PATCHES=true
@@ -497,6 +548,16 @@ echo "PD Patch:           $PD_PATCH"
 echo "TiDB Patch:         $TIDB_PATCH"
 echo "TiKV Patch:         $TIKV_PATCH"
 echo "TiKV Worker Patch:  $TIKV_WORKER_PATCH"
+echo "Small Region:       $SMALL_REGION"
+if [[ "$STRESS_REMOTE_COP" == true ]]; then
+    echo "Remote Cop Mode:    stress"
+    echo "Remote Cop MinBlk:  1"
+    echo "Remote Cop Ranges:  1"
+else
+    echo "Remote Cop Mode:    normal"
+    echo "Remote Cop MinBlk:  default"
+    echo "Remote Cop Ranges:  default"
+fi
 echo "Skip Patches:       $SKIP_PATCHES"
 echo "Skip Start:         $SKIP_START"
 echo "========================================"
