@@ -91,9 +91,9 @@ EOF_REMOTE_COP_STRESS
     local small_region_config=""
     if [[ "$SMALL_REGION" == true ]]; then
         small_region_config=$(cat << 'EOF_SMALL_REGION'
-    coprocessor.region-bucket-size: "256KiB"
-    coprocessor.region-split-keys: 100
-    coprocessor.region-split-size: "1MiB"
+    coprocessor.region-bucket-size: "64KiB"
+    coprocessor.region-split-keys: 20
+    coprocessor.region-split-size: "256KiB"
 EOF_SMALL_REGION
 )
         echo "Small region mode: enabled"

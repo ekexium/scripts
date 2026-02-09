@@ -23,6 +23,14 @@ RANGE_COUNT="128"
 RANGE_WIDTH="80"
 ROWID_STRIDE="60000"
 
+WRITER_THREADS="8"
+WRITER_ROWS_PER_EVENT="50"
+WRITER_FLUSH_EVERY="1000"
+SCAN_TAIL_WINDOW="2000000"
+SCAN_TAIL_EXTRA="8000000"
+
+TIDB_LOG_KEYWORDS="fell|range exceeds|validate|coverage"
+
 DO_DEPLOY="false"
 DO_CLEANUP="false"
 
@@ -138,6 +146,11 @@ common_args=(
   --range_count="${RANGE_COUNT}"
   --range_width="${RANGE_WIDTH}"
   --rowid_stride="${ROWID_STRIDE}"
+  --writer_threads="${WRITER_THREADS}"
+  --writer_rows_per_event="${WRITER_ROWS_PER_EVENT}"
+  --writer_flush_every="${WRITER_FLUSH_EVERY}"
+  --scan_tail_window="${SCAN_TAIL_WINDOW}"
+  --scan_tail_extra="${SCAN_TAIL_EXTRA}"
 )
 if [[ -n "${MYSQL_PASSWORD}" ]]; then
   common_args+=(--mysql-password="${MYSQL_PASSWORD}")
@@ -156,6 +169,10 @@ sysbench "${common_args[@]}" \
   --report-interval="${REPORT_INTERVAL}" \
   run | tee "${run_log}"
 
+echo "== Grep TiDB logs for signals (keywords: ${TIDB_LOG_KEYWORDS}) =="
+ssh -o StrictHostKeyChecking=no "tidb@${TIDB_HOST}" \
+  "grep -inE '${TIDB_LOG_KEYWORDS}' /data/${CLUSTER_NAME}/deploy/tidb-4000/log/tidb.log | tail -n 50" || true
+
 if [[ "${DO_CLEANUP}" == "true" ]]; then
   echo "== Cleanup data =="
   sysbench "${common_args[@]}" cleanup
@@ -166,4 +183,3 @@ ssh -o StrictHostKeyChecking=no "tidb@${TIKV_WORKER_HOST}" \
   "grep -n 'finished remote coprocessor' /data/tikv-worker/logs/tikv_worker.log | tail -n 20" || true
 
 echo "Done."
-
