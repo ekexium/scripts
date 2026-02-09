@@ -139,14 +139,20 @@ local function build_scan_sql()
     max_rowid - (sysbench.opt.range_count - 1) * sysbench.opt.rowid_stride - sysbench.opt.range_width - 1
   )
   local tail_start = math.max(1, max_rowid - sysbench.opt.scan_tail_window)
-  if tail_start > max_seed then
-    tail_start = 1
-  end
+	  if tail_start > max_seed then
+	    tail_start = 1
+	  end
+
   local seed = sysbench.rand.uniform(tail_start, max_seed)
   local clauses = {}
+  local seed_range = max_seed - tail_start + 1
+  if seed_range <= 0 then
+    seed_range = 1
+  end
 
   for i = 0, sysbench.opt.range_count - 1 do
-    local start_id = ((seed + i * sysbench.opt.rowid_stride - 1) % max_start) + 1
+    local base = seed + i * sysbench.opt.rowid_stride
+    local start_id = ((base - tail_start) % seed_range) + tail_start
     local end_id = start_id + sysbench.opt.range_width
     clauses[#clauses + 1] = string.format("(_tidb_rowid BETWEEN %d AND %d)", start_id, end_id)
   end
@@ -169,15 +175,12 @@ function thread_init()
   split_enabled = should_split_in_this_thread()
   split_event_counter = 0
 
-  if is_writer_thread() then
-    writer_con = new_connection()
-    writer_con:bulk_insert_init(string.format(
-      "INSERT INTO %s (k, pad) VALUES",
-      sysbench.opt.table_name
-    ))
-    writer_pending_rows = 0
-    return
-  end
+	  if is_writer_thread() then
+	    writer_con = new_connection()
+	    writer_bulk_inited = false
+	    writer_pending_rows = 0
+	    return
+	  end
 
   con = new_connection()
   must_query(con, "SET SESSION tidb_isolation_read_engines='tikv'")
@@ -190,13 +193,13 @@ function thread_init()
 end
 
 function thread_done()
-  if writer_con ~= nil then
-    if writer_pending_rows ~= nil and writer_pending_rows > 0 then
-      writer_con:bulk_insert_done()
-    end
-    writer_con:disconnect()
-    return
-  end
+	  if writer_con ~= nil then
+	    if writer_bulk_inited and writer_pending_rows > 0 then
+	      writer_con:bulk_insert_done()
+	    end
+	    writer_con:disconnect()
+	    return
+	  end
 
   if scan_error_count ~= nil and scan_error_count > 0 then
     print(string.format("WARN: scan errors in thread=%d count=%d", get_thread_id(), scan_error_count))
@@ -249,25 +252,33 @@ function cleanup()
 end
 
 function event()
-  if writer_con ~= nil then
-    for _ = 1, sysbench.opt.writer_rows_per_event do
-      writer_con:bulk_insert_next(string.format(
-        "(%d, REPEAT('x', %d))",
-        sysbench.rand.uniform(1, 1000000),
-        sysbench.opt.pad_size
-      ))
-      writer_pending_rows = writer_pending_rows + 1
-      if sysbench.opt.writer_flush_every > 0 and writer_pending_rows >= sysbench.opt.writer_flush_every then
-        writer_con:bulk_insert_done()
-        writer_con:bulk_insert_init(string.format(
-          "INSERT INTO %s (k, pad) VALUES",
-          sysbench.opt.table_name
-        ))
-        writer_pending_rows = 0
-      end
-    end
-    return
-  end
+	  if writer_con ~= nil then
+	    if not writer_bulk_inited then
+	      writer_con:bulk_insert_init(string.format(
+	        "INSERT INTO %s (k, pad) VALUES",
+	        sysbench.opt.table_name
+	      ))
+	      writer_bulk_inited = true
+	    end
+
+	    for _ = 1, sysbench.opt.writer_rows_per_event do
+	      writer_con:bulk_insert_next(string.format(
+	        "(%d, REPEAT('x', %d))",
+	        sysbench.rand.uniform(1, 1000000),
+	        sysbench.opt.pad_size
+	      ))
+	      writer_pending_rows = writer_pending_rows + 1
+	      if sysbench.opt.writer_flush_every > 0 and writer_pending_rows >= sysbench.opt.writer_flush_every then
+	        writer_con:bulk_insert_done()
+	        writer_con:bulk_insert_init(string.format(
+	          "INSERT INTO %s (k, pad) VALUES",
+	          sysbench.opt.table_name
+	        ))
+	        writer_pending_rows = 0
+	      end
+	    end
+	    return
+	  end
 
   if split_enabled then
     split_event_counter = split_event_counter + 1
