@@ -91,8 +91,9 @@ EOF_REMOTE_COP_STRESS
     local small_region_config=""
     if [[ "$SMALL_REGION" == true ]]; then
         small_region_config=$(cat << 'EOF_SMALL_REGION'
-    coprocessor.region-bucket-size: "64KiB"
-    coprocessor.region-split-keys: 20
+    coprocessor.region-bucket-size: "1KiB"
+    coprocessor.region-split-keys: 30
+    coprocessor.region-max-keys: 60
     coprocessor.region-split-size: "256KiB"
 EOF_SMALL_REGION
 )
